@@ -21,7 +21,7 @@ public class Main{
 
 
 
-        //testExampleSolution();
+        testExampleSolution();
         System.out.println("done");
     }
 
@@ -30,8 +30,11 @@ public class Main{
      */
     static void testExampleSolution(){
         int[][] examplePaths = {
-                {0, 3, 2},   //Correct 100
-                {1, 4, 2}    //Correct 130
+                {0, 3, 2},  //Correct 100
+                {1, 4, 2},  //Correct 130
+                {0, 4, 2},  //Incorrect
+                {1, 3, 2},  //Incorrect
+                {2, 3, 0},  //Incorrect
         };
 
         for(int i = 0; i < examplePaths.length; i++){
@@ -65,11 +68,11 @@ public class Main{
         }
         if(fSolution[0].airportDeparture != airpStart) return null; //Start area != input start area -> invalid
         if(fSolution[0].airportDeparture.arAreaLocation != fSolution[N-1].airportDestination.arAreaLocation) return null; //Start area != end area -> invalid
-        Area arCurrLoc = airpStart.arAreaLocation;
+        Airport airCurrLoc = airpStart;
         for(int i = 0; i < N; i++){
             if(fSolution[i].date != 0 && fSolution[i].date-1 != i) return null; //Flight date != date of travel -> invalid
-            if(fSolution[i].airportDeparture.arAreaLocation != arCurrLoc) return null; //Flight location area != current travel location -> invalid
-            arCurrLoc = fSolution[i].airportDestination.arAreaLocation;
+            if(fSolution[i].airportDeparture != airCurrLoc) return null; //Flight location area != current travel location -> invalid
+            airCurrLoc = fSolution[i].airportDestination;
             cost+=fSolution[i].cost;
         }
         return new Solution(fSolution, cost);
