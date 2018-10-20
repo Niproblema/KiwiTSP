@@ -1,5 +1,6 @@
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Scanner;
 
 public class Main{
@@ -12,6 +13,7 @@ public class Main{
         static HashMap<String, Area> areas;
         static HashMap<String, Airport> airports;
         static HashMap<Integer, Flight> flights;
+        static HashSet<Flight>[] flightsByDay;
     }
 
     public static void main(String[] args) {
@@ -32,6 +34,11 @@ public class Main{
         Data.areas = new HashMap<>(N);
         Data.airports = new HashMap<>();
         Data.flights = new HashMap<>();
+        Data.flightsByDay = new HashSet[N];
+
+        for (int i = 0; i < N; i ++) {
+            Data.flightsByDay[i] = new HashSet<>();
+        }
 
 
         for(int i = 0; i < N; i++){
@@ -50,6 +57,7 @@ public class Main{
             Data.flights.put(inFlight.id, inFlight);
         }
     }
+
 }
 
 
@@ -92,6 +100,14 @@ class Flight{
         this.cost = cost;
         airportDeparture.flightsOut.put(id, this);
         airportDestination.flightsIn.put(id, this);
+
+        if (date == 0) {
+            for (int i = 0; i < Main.N; i++) {
+                Main.Data.flightsByDay[i].add(this);
+            }
+        } else {
+            Main.Data.flightsByDay[date - 1].add(this);
+        }
     }
 
 }
