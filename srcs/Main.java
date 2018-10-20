@@ -17,6 +17,7 @@ public class Main{
         scanner = new Scanner(System.in);
         N = scanner.nextInt();
         String start = scanner.next();
+        scanner.nextLine();
 
         Data.areas = new HashMap<>(N);
         Data.airports = new HashMap<>();
