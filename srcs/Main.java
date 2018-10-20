@@ -4,8 +4,6 @@ import java.util.Scanner;
 
 public class Main{
 
-    static Scanner scanner;
-
     static int N;
     static Area arStart;
 
@@ -17,7 +15,15 @@ public class Main{
     }
 
     public static void main(String[] args) {
-        scanner = new Scanner(System.in);
+        parseInput();
+
+        System.out.println("done");
+    }
+
+
+    /** Parses input into Main.Data */
+    static void parseInput(){
+        Scanner scanner = new Scanner(System.in);
 
         String[] temp = scanner.nextLine().split(" ");
         N = Integer.parseInt(temp[0]);
@@ -35,7 +41,7 @@ public class Main{
             Data.areas.put(inArea.name, inArea);
             Data.airports.putAll(inArea.areaAirports);
         }
-        arStart = Data.areas.get("start");
+        arStart = Data.areas.get(start);
 
         while(scanner.hasNextLine()){
             String[] inFlightLine = scanner.nextLine().split(" ");
@@ -43,14 +49,7 @@ public class Main{
             Flight inFlight = new Flight(inFlightLine[0], inFlightLine[1], Integer.parseInt(inFlightLine[2]), Integer.parseInt(inFlightLine[3]));
             Data.flights.put(inFlight.id, inFlight);
         }
-        //Parse finish
-
-
-        System.out.println("lala");
     }
-
-
-
 }
 
 
