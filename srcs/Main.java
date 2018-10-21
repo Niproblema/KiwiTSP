@@ -5,47 +5,56 @@ import java.util.Scanner;
 
 public class Main{
 
-    static int N;
-    static Airport airpStart;
-
-    /* Collecton of all data, parsed in main. */
+    /* Data collection */
     static class Data {
+        static int N;
+        static Airport airpStart;
+
         static HashMap<String, Area> areas;
         static HashMap<String, Airport> airports;
         static HashMap<Integer, Flight> flights;
         static HashSet<Flight>[] flightsByDay;
+
+
+        ////Synchronized////
+        static Solution sBestSolution;
+        ////////////////////
     }
 
     public static void main(String[] args) {
+        //TODO: save start time
         parseInput();
+        //TODO: Start time limiter
 
 
+        testFewExampleSolutions();
 
-        testExampleSolution();
-        System.out.println("done");
+        printBestAndFinish();
     }
+
+
+
 
     /**
      * Few path examples for example test case. TODO: remove later
      */
-    static void testExampleSolution(){
+    static void testFewExampleSolutions(){
         int[][] examplePaths = {
-                //{0, 3, 2},  //Correct 100
-                //{1, 4, 2},  //Correct 130
-                //{0, 4, 2},  //Incorrect
-                //{1, 3, 2},  //Incorrect
-                //{2, 3, 0},  //Incorrect
-                {0,5,6}
+                {0, 3, 2},  //Correct 100
+                {1, 4, 2},  //Correct 130
+                {0, 4, 2},  //Incorrect
+                {1, 3, 2},  //Incorrect
+                {2, 3, 0},  //Incorrect
+                {0,5,6}     //Incorrect
         };
 
         for(int i = 0; i < examplePaths.length; i++){
-            Solution pSol = pathEvaluator(examplePaths[i]);
-            System.out.println("Path "+(i+1)+": \n"+ (pSol == null ? "invalid" : pSol.printSolution()));
+            pathEvaluator(examplePaths[i]);
         }
     }
 
     /**
-     * Evaluates given path.
+     * Evaluates given path, submits best Solutions to data
      * All areas must be visited exactly once, finish area equals start area
      * @param path Array of flight ids.
      * @return total cost of path or -1 if invalid.
@@ -54,31 +63,32 @@ public class Main{
     static Flight[] fSolution;
     static HashMap<String, Boolean> bVisited; //bitmap for visited areas
     static String[] sAreaNames;
-    static Solution pathEvaluator(int[] path){
+    static int pathEvaluator(int[] path){
         int cost = 0;
-        if(path.length != N) return null; //Wrong size -> invalid
+        if(path.length != Data.N) return -1; //Wrong size -> invalid
         if(!isSet){
-            fSolution = new Flight[N];
-            bVisited = new HashMap<>(N);
-            sAreaNames = Data.areas.keySet().toArray(new String[N]);
+            fSolution = new Flight[Data.N];
+            bVisited = new HashMap<>(Data.N);
+            sAreaNames = Data.areas.keySet().toArray(new String[Data.N]);
             isSet = true;
         }
-        for(int i = 0; i < N; i++){
+        for(int i = 0; i < Data.N; i++){
             fSolution[i] = Data.flights.get(path[i]);
             bVisited.put(sAreaNames[i], false);
         }
-        if(fSolution[0].airportDeparture != airpStart) return null; //Start area != input start area -> invalid
-        if(fSolution[0].airportDeparture.arAreaLocation != fSolution[N-1].airportDestination.arAreaLocation) return null; //Start area != end area -> invalid
-        Airport airCurrLoc = airpStart;
-        for(int i = 0; i < N; i++){
-            if(fSolution[i].date != 0 && fSolution[i].date-1 != i) return null; //Flight date != date of travel -> invalid
-            if(fSolution[i].airportDeparture != airCurrLoc) return null; //Flight location area != current travel location -> invalid
+        if(fSolution[0].airportDeparture != Data.airpStart) return -1; //Start area != input start area -> invalid
+        if(fSolution[0].airportDeparture.arAreaLocation != fSolution[Data.N-1].airportDestination.arAreaLocation) return -1; //Start area != end area -> invalid
+        Airport airCurrLoc = Data.airpStart;
+        for(int i = 0; i < Data.N; i++){
+            if(fSolution[i].date != 0 && fSolution[i].date-1 != i) return -1; //Flight date != date of travel -> invalid
+            if(fSolution[i].airportDeparture != airCurrLoc) return -1; //Flight location area != current travel location -> invalid
             airCurrLoc = fSolution[i].airportDestination;
-            if(bVisited.get(airCurrLoc.arAreaLocation.name)) return null; //Area visited before.
+            if(bVisited.get(airCurrLoc.arAreaLocation.name)) return -1; //Area visited before.
             bVisited.put(airCurrLoc.arAreaLocation.name, true);
             cost+=fSolution[i].cost;
         }
-        return new Solution(fSolution, cost);
+        submitSolution(new Solution(fSolution, cost));
+        return cost;
     }
 
     /** Parses input into Main.Data */
@@ -86,27 +96,27 @@ public class Main{
         Scanner scanner = new Scanner(System.in);
 
         String[] temp = scanner.nextLine().split(" ");
-        N = Integer.parseInt(temp[0]);
+        Data.N = Integer.parseInt(temp[0]);
         String start = temp[1];
 
-        Data.areas = new HashMap<>(N);
+        Data.areas = new HashMap<>(Data.N);
         Data.airports = new HashMap<>();
         Data.flights = new HashMap<>();
-        Data.flightsByDay = new HashSet[N];
+        Data.flightsByDay = new HashSet[Data.N];
 
-        for (int i = 0; i < N; i ++) {
+        for (int i = 0; i < Data.N; i ++) {
             Data.flightsByDay[i] = new HashSet<>();
         }
 
 
-        for(int i = 0; i < N; i++){
+        for(int i = 0; i < Data.N; i++){
             String name = scanner.nextLine();
             String[] airports = scanner.nextLine().split(" ");
             Area inArea = new Area(name, airports);
             Data.areas.put(inArea.name, inArea);
             Data.airports.putAll(inArea.areaAirports);
         }
-        airpStart = Data.airports.get(start);
+        Data.airpStart = Data.airports.get(start);
 
         while(scanner.hasNextLine()){
             String[] inFlightLine = scanner.nextLine().split(" ");
@@ -116,6 +126,24 @@ public class Main{
         }
     }
 
+    static synchronized Solution retriveSoltuin(){
+        return new Solution(Data.sBestSolution.fPath, Data.sBestSolution.mCost);
+    }
+
+    /** saves solution if best */
+    static synchronized void submitSolution(Solution s){
+        if(Data.sBestSolution == null || Data.sBestSolution.mCost > s.mCost){
+            Data.sBestSolution = s;
+        }
+    }
+
+    /** prints best solution */
+    static synchronized void printBestAndFinish(){
+        if(Data.sBestSolution != null){
+            Data.sBestSolution.printSolution(System.out);
+        }
+        System.exit(0);
+    }
 }
 
 
@@ -162,7 +190,7 @@ class Flight{
         airportDestination.flightsIn.put(id, this);
 
         if (date == 0) {
-            for (int i = 0; i < Main.N; i++) {
+            for (int i = 0; i < Main.Data.N; i++) {
                 Main.Data.flightsByDay[i].add(this);
             }
         } else {
@@ -178,7 +206,7 @@ class Solution{
     Flight[] fPath;
     int mCost;
     public Solution(Flight[] path, int cost){
-        this.fPath = path;
+        this.fPath = path.clone();
         mCost = cost;
     }
 
