@@ -2,6 +2,8 @@ import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Scanner;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class Main{
 
@@ -22,14 +24,21 @@ public class Main{
     }
 
     public static void main(String[] args) {
-        //TODO: save start time
+        long startTime = System.currentTimeMillis();
         parseInput();
-        //TODO: Start time limiter
+
+        //Start timer
+        Timer t = new Timer();
+        t.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                printBestAndFinish();
+            }
+        }, Math.max(50, (Data.N <=20 ? 2950 : (Data.N <= 100 ? 4950 : 14950))-(System.currentTimeMillis()-startTime)));
+        //
 
 
-        testFewExampleSolutions();
-
-        printBestAndFinish();
+        testFewExampleSolutions();  //Replace with algo
     }
 
 
@@ -126,7 +135,7 @@ public class Main{
         }
     }
 
-    static synchronized Solution retriveSoltuin(){
+    static synchronized Solution retrieveSolution(){
         return new Solution(Data.sBestSolution.fPath, Data.sBestSolution.mCost);
     }
 
