@@ -30,11 +30,12 @@ public class Main{
      */
     static void testExampleSolution(){
         int[][] examplePaths = {
-                {0, 3, 2},  //Correct 100
-                {1, 4, 2},  //Correct 130
-                {0, 4, 2},  //Incorrect
-                {1, 3, 2},  //Incorrect
-                {2, 3, 0},  //Incorrect
+                //{0, 3, 2},  //Correct 100
+                //{1, 4, 2},  //Correct 130
+                //{0, 4, 2},  //Incorrect
+                //{1, 3, 2},  //Incorrect
+                //{2, 3, 0},  //Incorrect
+                {0,5,6}
         };
 
         for(int i = 0; i < examplePaths.length; i++){
@@ -73,6 +74,8 @@ public class Main{
             if(fSolution[i].date != 0 && fSolution[i].date-1 != i) return null; //Flight date != date of travel -> invalid
             if(fSolution[i].airportDeparture != airCurrLoc) return null; //Flight location area != current travel location -> invalid
             airCurrLoc = fSolution[i].airportDestination;
+            if(bVisited.get(airCurrLoc.arAreaLocation.name)) return null; //Area visited before.
+            bVisited.put(airCurrLoc.arAreaLocation.name, true);
             cost+=fSolution[i].cost;
         }
         return new Solution(fSolution, cost);
