@@ -15,7 +15,7 @@ import java.io.IOException;
 
 //public class MainWrapper {
 //    public static void main(String[] args) throws IOException {
-//        FileInputStream is = new FileInputStream(new File("./tests/3.in"));
+//        FileInputStream is = new FileInputStream(new File("./tests/1.in"));
 //        System.setIn(is);
 //        Main.main(args);
 //    }
@@ -28,58 +28,9 @@ class Main{
     public static void main(String[] args) {
         graph = buildGraphFromInput();
 
-        Solution sol = bruteForceRandomSearch(500);
+        Solution sol = RandomSearch.bruteForceRandomSearch(500, graph);
 
         sol.printSolution(System.out);
-    }
-
-    static Solution bruteForceRandomSearch(int attempts) {
-        int bestCost = Integer.MAX_VALUE;
-        Solution best = new Solution(graph);
-
-        int valids = 0;
-
-        for (int i = 0; i < attempts; i++) {
-            Solution attempt = randomSearch(graph);
-            if (attempt != null) {
-//                System.out.println("Found valid solution, cost: " + attempt.cost);
-                valids++;
-                if (attempt.cost < bestCost) {
-                    bestCost = attempt.cost;
-                    best = attempt;
-                }
-            } else {
-//                System.out.println("INVALID SOLUTION FOUND");
-            }
-        }
-
-//        System.out.printf("Found %d/%d valid solutions", valids, attempts);
-
-        return best;
-    }
-
-    static Solution randomSearch(Graph graph) {
-        Solution solution = new Solution(graph);
-
-        HashSet<Area> visited = new HashSet<>();
-        Airport currentAirport = graph.airpStart;
-        visited.add(currentAirport.area);
-
-        for (int i = 0; i < graph.N; i++) {
-            int day = i+1;
-
-            List<Flight> potentialFlights = graph.getPossibleFlightsFromAirportForRandomSearch(currentAirport, day, visited);
-            if (potentialFlights.size() == 0) return null;
-            int randomNum = ThreadLocalRandom.current().nextInt(0, potentialFlights.size());
-
-            Flight selected = potentialFlights.get(randomNum);
-            solution.addFlight(selected);
-
-            currentAirport = selected.airportDestination;
-            visited.add(currentAirport.area);
-        }
-
-        return solution;
     }
 
     static Graph buildGraphFromInput() {
@@ -93,7 +44,6 @@ class Main{
         Area areaStart = null;
         HashMap<String, Area> areas = new HashMap<>(N);
         HashMap<String, Airport> airports = new HashMap<>();
-        HashMap<Integer, Flight> flights = new HashMap<>();
 
         List<Airport> startAreaAirports = new ArrayList<>();
 
@@ -115,7 +65,7 @@ class Main{
                     startAreaAirports.add(airport);
                 }
             }
-//            areas.put(areaName, area);
+            areas.put(areaName, area);
         }
 
         String line;
@@ -124,52 +74,91 @@ class Main{
 //            if (flightLine.length < 4) break; /* for debug */
             Airport departure = airports.get(flightLine[0]);
             Airport arrival = airports.get(flightLine[1]);
-            Flight flight = new Flight(departure, arrival, Integer.parseInt(flightLine[2]), Integer.parseInt(flightLine[3]));
-//            flights.put(flight.id, flight);
-//            departure.addFlightOut(flight);
-//            arrival.addFlightIn(flight);
+            int day = Integer.parseInt(flightLine[2]);
+            int cost = Integer.parseInt(flightLine[3]);
+            Flight flight = new Flight(departure, arrival, day, cost);
             departure.addFlightOutOnDay(flight);
 
+            // if leaving from one airport in start area, can leave from any
             if (departure.area == areaStart) {
                 for (Airport startAreaAirpot: startAreaAirports) {
                     if (startAreaAirpot == departure) {
                         continue;
                     }
-                    startAreaAirpot.addFlightOutOnDay(new Flight(startAreaAirpot, arrival,
-                            Integer.parseInt(flightLine[2]), Integer.parseInt(flightLine[3]), flight));
+                    startAreaAirpot.addFlightOutOnDay(new Flight(startAreaAirpot, arrival, day, cost, flight));
                 }
             }
         }
 
-        return new Graph(N, airpStart, areaStart, areas, airports, flights);
+        return new Graph(N, airpStart, areaStart, areas, airports);
     }
 }
 
+class RandomSearch{
 
-class Graph {
+    static Solution bruteForceRandomSearch(int attempts, Graph graph) {
+        Solution best = new Solution(graph);
+        best.cost = Integer.MAX_VALUE;
+
+        for (int i = 0; i < attempts; i++) {
+            Solution attempt = randomSearch(graph);
+            if (attempt != null) {
+                if (attempt.cost < best.cost) {
+                    best = attempt;
+                }
+            }
+        }
+        return best;
+    }
+
+    static Solution randomSearch(Graph graph) {
+        Solution solution = new Solution(graph);
+
+        HashSet<Area> visited = new HashSet<>();
+        Airport currentAirport = graph.airpStart;
+        visited.add(currentAirport.area);
+
+        for (int i = 0; i < graph.N; i++) {
+            int day = i+1;
+
+            List<Flight> potentialFlights = RandomSearch.getPossibleFlightsFromAirportForRandomSearch(currentAirport, day, visited, graph);
+            if (potentialFlights.size() == 0) return null;
+            int randomNum = ThreadLocalRandom.current().nextInt(0, potentialFlights.size());
+
+            Flight selected = potentialFlights.get(randomNum);
+            solution.addFlight(selected);
+
+            currentAirport = selected.airportDestination;
+            visited.add(currentAirport.area);
+        }
+
+        return solution;
+    }
+
+    static List<Flight> getPossibleFlightsFromAirportForRandomSearch(Airport airport, int day,
+                                                                            HashSet<Area> visited, Graph graph) {
+        return airport.flightsOutOnDay.get(day).stream()
+                .filter(flight -> (day == graph.N ?
+                        flight.airportDestination.area == graph.areaStart :
+                        !visited.contains(flight.airportDestination.area)))
+                .collect(Collectors.toList());
+    }
+}
+
+class Graph{
     int N;
     Airport airpStart;
     Area areaStart;
     HashMap<String, Area> areas;
     HashMap<String, Airport> airports;
-    HashMap<Integer, Flight> flights;
 
     public Graph(int n, Airport airpStart, Area areaStart, HashMap<String, Area> areas,
-                 HashMap<String, Airport> airports, HashMap<Integer, Flight> flights) {
+                 HashMap<String, Airport> airports) {
         N = n;
         this.airpStart = airpStart;
         this.areaStart = areaStart;
         this.areas = areas;
         this.airports = airports;
-        this.flights = flights;
-    }
-
-    public List<Flight> getPossibleFlightsFromAirportForRandomSearch(Airport airport, int day, HashSet<Area> visited) {
-        return airport.flightsOutOnDay.get(day).stream()
-                .filter(flight -> (day == N ?
-                            flight.airportDestination.area == areaStart :
-                            !visited.contains(flight.airportDestination.area)))
-                .collect(Collectors.toList());
     }
 }
 
@@ -206,13 +195,13 @@ class Airport{
         }
     }
 
-    public void addFlightIn(Flight flight) {
-        this.flightsIn.put(flight.id, flight);
-    }
-
-    public void addFlightOut(Flight flight) {
-        this.flightsOut.put(flight.id, flight);
-    }
+//    public void addFlightIn(Flight flight) {
+//        this.flightsIn.put(flight.id, flight);
+//    }
+//
+//    public void addFlightOut(Flight flight) {
+//        this.flightsOut.put(flight.id, flight);
+//    }
 
     public void addFlightOutOnDay(Flight flight) {
         if (flight.day == 0) {
@@ -226,8 +215,6 @@ class Airport{
 }
 
 class Flight{
-    private static int idCounter = 0; //Unique id counter
-    int id;                           //Unique id
     Airport airportDeparture, airportDestination;
     int day, cost;
 
@@ -235,17 +222,12 @@ class Flight{
     Flight shadow;
 
     public Flight(Airport airportDeparture, Airport airportDestination, int day, int cost, Flight shadow) {
-        this.id = idCounter++;
-        this.airportDeparture = airportDeparture;
-        this.airportDestination = airportDestination;
-        this.day = day;
-        this.cost = cost;
+        this(airportDeparture, airportDestination, day, cost);
         this.shadow = shadow;
         this.isShadow = true;
     }
 
     public Flight(Airport departure, Airport destination, int day, int cost){
-        this.id = idCounter++;
         this.airportDeparture = departure;
         this.airportDestination = destination;
         this.day = day;
@@ -324,8 +306,7 @@ class Solution{
     }
 }
 
-class FastReader
-{
+class FastReader{
     BufferedReader br;
     StringTokenizer st;
 
@@ -380,12 +361,3 @@ class FastReader
         return str;
     }
 }
-
-
-
-
-/*
-NOTES:
--graph preprocessing: which areas on which days?
--area0 connetions
- */
