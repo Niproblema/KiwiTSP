@@ -1,185 +1,173 @@
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Scanner;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 public class Main{
 
-    /* Data collection */
-    static class Data {
-        static int N;
-        static Airport airpStart;
-
-        static HashMap<String, Area> areas;
-        static HashMap<String, Airport> airports;
-        static HashMap<Integer, Flight> flights;
-        static HashSet<Flight>[] flightsByDay;
-
-
-        ////Synchronized////
-        static Solution sBestSolution;
-        ////////////////////
-    }
+    static Graph graph;
 
     public static void main(String[] args) {
-        long startTime = System.currentTimeMillis();
-        parseInput();
+        graph = buildGraphFromInput();
 
-        //Start timer
-        Timer t = new Timer();
-        t.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                printBestAndFinish();
+        Solution sol = bruteForceRandomSearch(50);
+
+        System.out.print("Done");
+    }
+
+    static Solution bruteForceRandomSearch(int attempts) {
+        int bestCost = Integer.MAX_VALUE;
+        Solution best = new Solution(graph);
+
+        for (int i = 0; i < attempts; i++) {
+            Solution attempt = randomSearch(graph);
+            if (attempt != null) {
+                System.out.println("Found valid solution, cost: " + attempt.cost);
+                if (attempt.cost < bestCost) {
+                    bestCost = attempt.cost;
+                    best = attempt;
+                }
+            } else {
+                System.out.println("INVALID SOLUTION FOUND");
             }
-        }, Math.max(50, (Data.N <=20 ? 2950 : (Data.N <= 100 ? 4950 : 14950))-(System.currentTimeMillis()-startTime)));
-        //
+        }
 
-
-        testFewExampleSolutions();  //Replace with algo
+        return best;
     }
 
+    static Solution randomSearch(Graph graph) {
+        Solution solution = new Solution(graph);
 
+        HashSet<Area> visited = new HashSet<>();
+        Airport currentAirport = graph.airpStart;
+        visited.add(currentAirport.area);
 
+        for (int i = 0; i < graph.N; i++) {
+            int day = i+1;
 
-    /**
-     * Few path examples for example test case. TODO: remove later
-     */
-    static void testFewExampleSolutions(){
-        int[][] examplePaths = {
-                {0, 3, 2},  //Correct 100
-                {1, 4, 2},  //Correct 130
-                {0, 4, 2},  //Incorrect
-                {1, 3, 2},  //Incorrect
-                {2, 3, 0},  //Incorrect
-                {0,5,6}     //Incorrect
-        };
+            List<Flight> potentialFlights = graph.getPossibleFlightsFromAirportForRandomSearch(currentAirport, day, visited);
+            if (potentialFlights.size() == 0) return null;
+            int randomNum = ThreadLocalRandom.current().nextInt(0, potentialFlights.size());
 
-        for(int i = 0; i < examplePaths.length; i++){
-            pathEvaluator(examplePaths[i]);
+            Flight selected = potentialFlights.get(randomNum);
+            solution.addFlight(selected);
+
+            currentAirport = selected.airportDestination;
+            visited.add(currentAirport.area);
         }
+
+        return solution;
     }
 
-    /**
-     * Evaluates given path, submits best Solutions to data
-     * All areas must be visited exactly once, finish area equals start area
-     * @param path Array of flight ids.
-     * @return total cost of path or -1 if invalid.
-     */
-    static boolean isSet = false;
-    static Flight[] fSolution;
-    static HashMap<String, Boolean> bVisited; //bitmap for visited areas
-    static String[] sAreaNames;
-    static int pathEvaluator(int[] path){
-        int cost = 0;
-        if(path.length != Data.N) return -1; //Wrong size -> invalid
-        if(!isSet){
-            fSolution = new Flight[Data.N];
-            bVisited = new HashMap<>(Data.N);
-            sAreaNames = Data.areas.keySet().toArray(new String[Data.N]);
-            isSet = true;
-        }
-        for(int i = 0; i < Data.N; i++){
-            fSolution[i] = Data.flights.get(path[i]);
-            bVisited.put(sAreaNames[i], false);
-        }
-        if(fSolution[0].airportDeparture != Data.airpStart) return -1; //Start area != input start area -> invalid
-        if(fSolution[0].airportDeparture.arAreaLocation != fSolution[Data.N-1].airportDestination.arAreaLocation) return -1; //Start area != end area -> invalid
-        Airport airCurrLoc = Data.airpStart;
-        for(int i = 0; i < Data.N; i++){
-            if(fSolution[i].date != 0 && fSolution[i].date-1 != i) return -1; //Flight date != date of travel -> invalid
-            if(fSolution[i].airportDeparture != airCurrLoc) return -1; //Flight location area != current travel location -> invalid
-            airCurrLoc = fSolution[i].airportDestination;
-            if(bVisited.get(airCurrLoc.arAreaLocation.name)) return -1; //Area visited before.
-            bVisited.put(airCurrLoc.arAreaLocation.name, true);
-            cost+=fSolution[i].cost;
-        }
-        submitSolution(new Solution(fSolution, cost));
-        return cost;
-    }
-
-    /** Parses input into Main.Data */
-    static void parseInput(){
+    static Graph buildGraphFromInput() {
         Scanner scanner = new Scanner(System.in);
 
         String[] temp = scanner.nextLine().split(" ");
-        Data.N = Integer.parseInt(temp[0]);
-        String start = temp[1];
+        int N = Integer.parseInt(temp[0]);
+        String startAirportName = temp[1];
 
-        Data.areas = new HashMap<>(Data.N);
-        Data.airports = new HashMap<>();
-        Data.flights = new HashMap<>();
-        Data.flightsByDay = new HashSet[Data.N];
+        Airport airpStart = null;
+        Area areaStart = null;
+        HashMap<String, Area> areas = new HashMap<>(N);
+        HashMap<String, Airport> airports = new HashMap<>();
+        HashMap<Integer, Flight> flights = new HashMap<>();
 
-        for (int i = 0; i < Data.N; i ++) {
-            Data.flightsByDay[i] = new HashSet<>();
+        for (int i = 0; i < N; i++) {
+            String areaName = scanner.nextLine();
+            String[] airportNames = scanner.nextLine().split(" ");
+            Area area = new Area(areaName);
+            for (String airportName : airportNames) {
+                Airport airport = new Airport(airportName, area);
+                area.addAirport(airport);
+                airports.put(airportName, airport);
+
+                if (airportName.equals(startAirportName)) {
+                    airpStart = airport;
+                    areaStart = area;
+                }
+            }
         }
 
-
-        for(int i = 0; i < Data.N; i++){
-            String name = scanner.nextLine();
-            String[] airports = scanner.nextLine().split(" ");
-            Area inArea = new Area(name, airports);
-            Data.areas.put(inArea.name, inArea);
-            Data.airports.putAll(inArea.areaAirports);
-        }
-        Data.airpStart = Data.airports.get(start);
-
-        while(scanner.hasNextLine()){
+        while (scanner.hasNextLine()) {
             String[] inFlightLine = scanner.nextLine().split(" ");
-            if(inFlightLine.length < 4)break;
-            Flight inFlight = new Flight(inFlightLine[0], inFlightLine[1], Integer.parseInt(inFlightLine[2]), Integer.parseInt(inFlightLine[3]));
-            Data.flights.put(inFlight.id, inFlight);
+            if (inFlightLine.length < 4) break; /* for debug */
+            Airport departure = airports.get(inFlightLine[0]);
+            Airport arrival = airports.get(inFlightLine[1]);
+            Flight inFlight = new Flight(departure, arrival, Integer.parseInt(inFlightLine[2]), Integer.parseInt(inFlightLine[3]));
+            flights.put(inFlight.id, inFlight);
+            departure.addFlightOut(inFlight);
+            arrival.addFlightIn(inFlight);
         }
-    }
 
-    static synchronized Solution retrieveSolution(){
-        return new Solution(Data.sBestSolution.fPath, Data.sBestSolution.mCost);
-    }
-
-    /** saves solution if best */
-    static synchronized void submitSolution(Solution s){
-        if(Data.sBestSolution == null || Data.sBestSolution.mCost > s.mCost){
-            Data.sBestSolution = s;
-        }
-    }
-
-    /** prints best solution */
-    static synchronized void printBestAndFinish(){
-        if(Data.sBestSolution != null){
-            Data.sBestSolution.printSolution(System.out);
-        }
-        System.exit(0);
+        return new Graph(N, airpStart, areaStart, areas, airports, flights);
     }
 }
 
 
+class Graph {
+    int N;
+    Airport airpStart;
+    Area areaStart;
+    HashMap<String, Area> areas;
+    HashMap<String, Airport> airports;
+    HashMap<Integer, Flight> flights;
 
+    public Graph(int n, Airport airpStart, Area areaStart, HashMap<String, Area> areas, HashMap<String, Airport> airports, HashMap<Integer, Flight> flights) {
+        N = n;
+        this.airpStart = airpStart;
+        this.areaStart = areaStart;
+        this.areas = areas;
+        this.airports = airports;
+        this.flights = flights;
+    }
+
+    public List<Flight> getPossibleFlightsFromAirportForRandomSearch(Airport airport, int day, HashSet<Area> visited) {
+        return airport.flightsOut.values().stream()
+                .filter(flight -> (flight.day == day || flight.day == 0) &&
+                        // must be on right day (above) and in valid area (below)
+                        (day == N ?
+                            flight.airportDestination.area == areaStart :
+                            !visited.contains(flight.airportDestination.area)))
+                .collect(Collectors.toList());
+    }
+}
 
 class Area{
     String name;
-    HashMap<String, Airport> areaAirports;
+    HashMap<String, Airport> airports;
 
-    public Area(String name, String[] inAirports){
-        this.areaAirports = new HashMap<>(inAirports.length);
+    public Area(String name){
+        this.airports = new HashMap<>();
         this.name = name;
-        for(String inAirport:inAirports){
-            areaAirports.put(inAirport, new Airport(inAirport, this));
-        }
+    }
+
+    public void addAirport(Airport airport) {
+        this.airports.put(airport.name, airport);
     }
 }
 
 class Airport{
     String name;
+    Area area;
     HashMap<Integer, Flight> flightsIn,flightsOut;
-    Area arAreaLocation;
+
     public Airport(String name, Area area){
         this.name = name;
+        this.area = area;
         this.flightsIn = new HashMap<>();
         this.flightsOut = new HashMap<>();
-        this.arAreaLocation = area;
+    }
+
+    public void addFlightIn(Flight flight) {
+        this.flightsIn.put(flight.id, flight);
+    }
+
+    public void addFlightOut(Flight flight) {
+        this.flightsOut.put(flight.id, flight);
     }
 }
 
@@ -187,50 +175,72 @@ class Flight{
     private static int idCounter = 0; //Unique id counter
     int id;                           //Unique id
     Airport airportDeparture, airportDestination;
-    int date, cost;
+    int day, cost;
 
-    public Flight(String departure, String destination, int date, int cost){
+    public Flight(Airport departure, Airport destination, int day, int cost){
         this.id = idCounter++;
-        airportDeparture = Main.Data.airports.get(departure);
-        airportDestination = Main.Data.airports.get(destination);
-        this.date = date;
+        this.airportDeparture = departure;
+        this.airportDestination = destination;
+        this.day = day;
         this.cost = cost;
-        airportDeparture.flightsOut.put(id, this);
-        airportDestination.flightsIn.put(id, this);
-
-        if (date == 0) {
-            for (int i = 0; i < Main.Data.N; i++) {
-                Main.Data.flightsByDay[i].add(this);
-            }
-        } else {
-            Main.Data.flightsByDay[date - 1].add(this);
-        }
     }
 }
 
-/**
- * Class for storing valid solutions. todo: solution methods
- */
 class Solution{
-    Flight[] fPath;
-    int mCost;
-    public Solution(Flight[] path, int cost){
-        this.fPath = path.clone();
-        mCost = cost;
+    List<Flight> path;
+    int cost;
+    Graph graph;
+
+    public Solution(Graph graph){
+        this.path = new ArrayList<>();
+        this.cost = 0;
+        this.graph = graph;
+    }
+
+    public void addFlight(Flight flight) {
+        this.path.add(flight);
+        this.cost += flight.cost;
+    }
+
+    public boolean isValid() {
+        // too few or too many areas visited
+        if (path.size() != graph.N) return false;
+        // does not begin in right place
+        if (path.get(0).airportDeparture != graph.airpStart) return false;
+        // does not end in right place
+        if (path.get(path.size()-1).airportDestination.area != graph.areaStart) return false;
+
+        HashSet<Area> visited = new HashSet<>();
+        Airport currentLocation = graph.airpStart;
+        for (int i = 0; i < path.size(); i++) {
+            int day = i + 1;
+            Flight currentFlight = path.get(i);
+
+            // flight on wrong day
+            if (currentFlight.day != day && currentFlight.day != 0) return false;
+            // flight leaving from wrong location
+            if (currentFlight.airportDeparture != currentLocation) return false;
+            currentLocation = currentFlight.airportDestination;
+            // area visited before
+            if (visited.contains(currentLocation.area)) return false;
+            visited.add(currentLocation.area);
+        }
+
+        return true;
     }
 
     void printSolution(PrintStream destination){
-        destination.println(mCost);
-        for(int i= 0; i < fPath.length; i++){
-            destination.println(fPath[i].airportDeparture.name+" "+fPath[i].airportDestination.name+" "+(i+1)+" "+fPath[i].cost);
+        destination.println(cost);
+        for(int i= 0; i < path.size(); i++){
+            destination.println(path.get(i).airportDeparture.name+" "+path.get(i).airportDestination.name+" "+(i+1)+" "+path.get(i).cost);
         }
     }
 
-    String printSolution(){
-        String output = mCost+"\n";
-        for(int i= 0; i < fPath.length; i++){
-            output+=fPath[i].airportDeparture.name+" "+fPath[i].airportDestination.name+" "+(i+1)+" "+fPath[i].cost;
-            if(i!=fPath.length-1)output+="\n";
+    String solutionString(){
+        String output = cost+"\n";
+        for(int i= 0; i < path.size(); i++){
+            output+=path.get(i).airportDeparture.name+" "+path.get(i).airportDestination.name+" "+(i+1)+" "+path.get(i).cost;
+            if(i!=path.size()-1)output+="\n";
         }
         return output;
     }
