@@ -14,7 +14,7 @@ public class Main{
     public static void main(String[] args) {
         graph = buildGraphFromInput();
 
-        Solution sol = bruteForceRandomSearch(2000);
+        Solution sol = bruteForceRandomSearch(1000);
 
         sol.printSolution(System.out);
     }
@@ -86,7 +86,7 @@ public class Main{
             String[] airportNames = scanner.nextLine().split(" ");
             Area area = new Area(areaName);
             for (String airportName : airportNames) {
-                Airport airport = new Airport(airportName, area);
+                Airport airport = new Airport(airportName, area, N);
                 area.addAirport(airport);
                 airports.put(airportName, airport);
 
@@ -98,14 +98,15 @@ public class Main{
         }
 
         while (scanner.hasNextLine()) {
-            String[] inFlightLine = scanner.nextLine().split(" ");
-            if (inFlightLine.length < 4) break; /* for debug */
-            Airport departure = airports.get(inFlightLine[0]);
-            Airport arrival = airports.get(inFlightLine[1]);
-            Flight inFlight = new Flight(departure, arrival, Integer.parseInt(inFlightLine[2]), Integer.parseInt(inFlightLine[3]));
-            flights.put(inFlight.id, inFlight);
-            departure.addFlightOut(inFlight);
-            arrival.addFlightIn(inFlight);
+            String[] flightLine = scanner.nextLine().split(" ");
+            if (flightLine.length < 4) break; /* for debug */
+            Airport departure = airports.get(flightLine[0]);
+            Airport arrival = airports.get(flightLine[1]);
+            Flight flight = new Flight(departure, arrival, Integer.parseInt(flightLine[2]), Integer.parseInt(flightLine[3]));
+            flights.put(flight.id, flight);
+            departure.addFlightOut(flight);
+            arrival.addFlightIn(flight);
+            departure.addFlightOutOnDay(flight);
         }
 
         return new Graph(N, airpStart, areaStart, areas, airports, flights);
@@ -121,7 +122,8 @@ class Graph {
     HashMap<String, Airport> airports;
     HashMap<Integer, Flight> flights;
 
-    public Graph(int n, Airport airpStart, Area areaStart, HashMap<String, Area> areas, HashMap<String, Airport> airports, HashMap<Integer, Flight> flights) {
+    public Graph(int n, Airport airpStart, Area areaStart, HashMap<String, Area> areas,
+                 HashMap<String, Airport> airports, HashMap<Integer, Flight> flights) {
         N = n;
         this.airpStart = airpStart;
         this.areaStart = areaStart;
@@ -131,10 +133,8 @@ class Graph {
     }
 
     public List<Flight> getPossibleFlightsFromAirportForRandomSearch(Airport airport, int day, HashSet<Area> visited) {
-        return airport.flightsOut.values().stream()
-                .filter(flight -> (flight.day == day || flight.day == 0) &&
-                        // must be on right day (above) and in valid area (below)
-                        (day == N ?
+        return airport.flightsOutOnDay.get(day).stream()
+                .filter(flight -> (day == N ?
                             flight.airportDestination.area == areaStart :
                             !visited.contains(flight.airportDestination.area)))
                 .collect(Collectors.toList());
@@ -159,12 +159,19 @@ class Airport{
     String name;
     Area area;
     HashMap<Integer, Flight> flightsIn,flightsOut;
+    HashMap<Integer, List<Flight>> flightsOutOnDay;
 
-    public Airport(String name, Area area){
+    public Airport(String name, Area area, int numDays){
         this.name = name;
         this.area = area;
         this.flightsIn = new HashMap<>();
         this.flightsOut = new HashMap<>();
+        this.flightsOutOnDay = new HashMap<>();
+
+        for (int i = 0; i < numDays; i++) {
+            int day = i+1;
+            this.flightsOutOnDay.put(day, new ArrayList<>());
+        }
     }
 
     public void addFlightIn(Flight flight) {
@@ -173,6 +180,16 @@ class Airport{
 
     public void addFlightOut(Flight flight) {
         this.flightsOut.put(flight.id, flight);
+    }
+
+    public void addFlightOutOnDay(Flight flight) {
+        if (flight.day == 0) {
+            for (List<Flight> flights: this.flightsOutOnDay.values()) {
+                flights.add(flight);
+            }
+        } else {
+            this.flightsOutOnDay.get(flight.day).add(flight);
+        }
     }
 }
 
@@ -250,3 +267,10 @@ class Solution{
         return output;
     }
 }
+
+
+/*
+NOTES:
+-graph preprocessing: which areas on which days?
+-area0 connetions
+ */
