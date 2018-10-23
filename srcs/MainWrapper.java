@@ -13,13 +13,13 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
-//public class MainWrapper {
-//    public static void main(String[] args) throws IOException {
-//        FileInputStream is = new FileInputStream(new File("./tests/3.in"));
-//        System.setIn(is);
-//        Main.main(args);
-//    }
-//}
+public class MainWrapper {
+    public static void main(String[] args) throws IOException {
+        FileInputStream is = new FileInputStream(new File("./tests/3.in"));
+        System.setIn(is);
+        Main.main(args);
+    }
+}
 
 class Main{
 
@@ -101,7 +101,7 @@ class Main{
             Area area = new Area(areaName);
             for (String airportName : airportNames) {
                 Airport airport = new Airport(airportName, area, N);
-                area.addAirport(airport);
+//                area.addAirport(airport);
                 airports.put(airportName, airport);
 
                 if (airportName.equals(startAirportName)) {
@@ -109,7 +109,7 @@ class Main{
                     areaStart = area;
                 }
             }
-            areas.put(areaName, area);
+//            areas.put(areaName, area);
         }
 
         String line;
@@ -119,9 +119,9 @@ class Main{
             Airport departure = airports.get(flightLine[0]);
             Airport arrival = airports.get(flightLine[1]);
             Flight flight = new Flight(departure, arrival, Integer.parseInt(flightLine[2]), Integer.parseInt(flightLine[3]));
-            flights.put(flight.id, flight);
-            departure.addFlightOut(flight);
-            arrival.addFlightIn(flight);
+//            flights.put(flight.id, flight);
+//            departure.addFlightOut(flight);
+//            arrival.addFlightIn(flight);
             departure.addFlightOutOnDay(flight);
         }
 
