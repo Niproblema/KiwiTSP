@@ -1,20 +1,34 @@
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Scanner;
+import java.util.StringTokenizer;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
-public class Main{
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+
+//public class MainWrapper {
+//    public static void main(String[] args) throws IOException {
+//        FileInputStream is = new FileInputStream(new File("./tests/3.in"));
+//        System.setIn(is);
+//        Main.main(args);
+//    }
+//}
+
+class Main{
 
     static Graph graph;
 
     public static void main(String[] args) {
         graph = buildGraphFromInput();
 
-        Solution sol = bruteForceRandomSearch(1000);
+        Solution sol = bruteForceRandomSearch(500);
 
         sol.printSolution(System.out);
     }
@@ -69,7 +83,7 @@ public class Main{
     }
 
     static Graph buildGraphFromInput() {
-        Scanner scanner = new Scanner(System.in);
+        FastReader scanner = new FastReader();
 
         String[] temp = scanner.nextLine().split(" ");
         int N = Integer.parseInt(temp[0]);
@@ -95,11 +109,13 @@ public class Main{
                     areaStart = area;
                 }
             }
+            areas.put(areaName, area);
         }
 
-        while (scanner.hasNextLine()) {
-            String[] flightLine = scanner.nextLine().split(" ");
-            if (flightLine.length < 4) break; /* for debug */
+        String line;
+        while ((line = scanner.nextLine()) != null) {
+            String[] flightLine = line.split(" ");
+//            if (flightLine.length < 4) break; /* for debug */
             Airport departure = airports.get(flightLine[0]);
             Airport arrival = airports.get(flightLine[1]);
             Flight flight = new Flight(departure, arrival, Integer.parseInt(flightLine[2]), Integer.parseInt(flightLine[3]));
@@ -139,6 +155,16 @@ class Graph {
                             !visited.contains(flight.airportDestination.area)))
                 .collect(Collectors.toList());
     }
+
+//    public List<Flight> getPossibleFlightsFromAirportForRandomSearch(Airport airport, int day, HashSet<Area> visited) {
+//        return airport.flightsOut.values().stream()
+//                .filter(flight -> (flight.day == day || flight.day == 0) &&
+//                        // must be on right day (above) and in valid area (below)
+//                        (day == N ?
+//                            flight.airportDestination.area == areaStart :
+//                            !visited.contains(flight.airportDestination.area)))
+//                .collect(Collectors.toList());
+//    }
 }
 
 class Area{
@@ -267,6 +293,65 @@ class Solution{
         return output;
     }
 }
+
+class FastReader
+{
+    BufferedReader br;
+    StringTokenizer st;
+
+    public FastReader()
+    {
+        br = new BufferedReader(new
+                InputStreamReader(System.in));
+    }
+
+    String next()
+    {
+        while (st == null || !st.hasMoreElements())
+        {
+            try
+            {
+                st = new StringTokenizer(br.readLine());
+            }
+            catch (IOException  e)
+            {
+                e.printStackTrace();
+            }
+        }
+        return st.nextToken();
+    }
+
+    int nextInt()
+    {
+        return Integer.parseInt(next());
+    }
+
+    long nextLong()
+    {
+        return Long.parseLong(next());
+    }
+
+    double nextDouble()
+    {
+        return Double.parseDouble(next());
+    }
+
+    String nextLine()
+    {
+        String str = "";
+        try
+        {
+            str = br.readLine();
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        return str;
+    }
+}
+
+
 
 
 /*
