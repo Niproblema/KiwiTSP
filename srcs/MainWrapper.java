@@ -1,4 +1,7 @@
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -9,28 +12,30 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-
-//public class MainWrapper {
-//    public static void main(String[] args) throws IOException {
-//        FileInputStream is = new FileInputStream(new File("./tests/3.in"));
-//        System.setIn(is);
-//        Main.main(args);
-//    }
-//}
+public class MainWrapper {
+    public static void main(String[] args) throws IOException {
+        FileInputStream is = new FileInputStream(new File("tests/4.in"));
+        System.setIn(is);
+        Main.main(args);
+    }
+}
 
 class Main{
 
     static Graph graph;
+    static long startTime, parseTime, finishTime;
+
 
     public static void main(String[] args) {
+        startTime = System.currentTimeMillis();
         graph = buildGraphFromInput();
 
-        Solution sol = bruteForceRandomSearch(500);
+        Solution sol = bruteForceRandomSearch(2000);
 
         sol.printSolution(System.out);
+        finishTime = System.currentTimeMillis();
+        System.out.println();
+        System.out.println("Parse: "+(parseTime-startTime)+"\nAlgo: "+(finishTime-parseTime));
     }
 
     static Solution bruteForceRandomSearch(int attempts) {
@@ -83,7 +88,8 @@ class Main{
     }
 
     static Graph buildGraphFromInput() {
-        FastReader scanner = new FastReader();
+
+        FastReader scanner =  new FastReader();
 
         String[] temp = scanner.nextLine().split(" ");
         int N = Integer.parseInt(temp[0]);
@@ -112,10 +118,10 @@ class Main{
             areas.put(areaName, area);
         }
 
-        String line;
+        String line = null;
         while ((line = scanner.nextLine()) != null) {
             String[] flightLine = line.split(" ");
-//            if (flightLine.length < 4) break; /* for debug */
+            if (flightLine.length < 4) break; /* for debug */
             Airport departure = airports.get(flightLine[0]);
             Airport arrival = airports.get(flightLine[1]);
             Flight flight = new Flight(departure, arrival, Integer.parseInt(flightLine[2]), Integer.parseInt(flightLine[3]));
@@ -124,7 +130,8 @@ class Main{
             arrival.addFlightIn(flight);
             departure.addFlightOutOnDay(flight);
         }
-
+        parseTime = System.currentTimeMillis();
+        //return null;
         return new Graph(N, airpStart, areaStart, areas, airports, flights);
     }
 }
