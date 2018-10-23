@@ -13,13 +13,13 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
-public class MainWrapper {
-    public static void main(String[] args) throws IOException {
-        FileInputStream is = new FileInputStream(new File("./tests/3.in"));
-        System.setIn(is);
-        Main.main(args);
-    }
-}
+//public class MainWrapper {
+//    public static void main(String[] args) throws IOException {
+//        FileInputStream is = new FileInputStream(new File("./tests/3.in"));
+//        System.setIn(is);
+//        Main.main(args);
+//    }
+//}
 
 class Main{
 
@@ -95,6 +95,8 @@ class Main{
         HashMap<String, Airport> airports = new HashMap<>();
         HashMap<Integer, Flight> flights = new HashMap<>();
 
+        List<Airport> startAreaAirports = new ArrayList<>();
+
         for (int i = 0; i < N; i++) {
             String areaName = scanner.nextLine();
             String[] airportNames = scanner.nextLine().split(" ");
@@ -107,6 +109,10 @@ class Main{
                 if (airportName.equals(startAirportName)) {
                     airpStart = airport;
                     areaStart = area;
+                }
+
+                if (area == areaStart) {
+                    startAreaAirports.add(airport);
                 }
             }
 //            areas.put(areaName, area);
@@ -123,6 +129,16 @@ class Main{
 //            departure.addFlightOut(flight);
 //            arrival.addFlightIn(flight);
             departure.addFlightOutOnDay(flight);
+
+            if (departure.area == areaStart) {
+                for (Airport startAreaAirpot: startAreaAirports) {
+                    if (startAreaAirpot == departure) {
+                        continue;
+                    }
+                    startAreaAirpot.addFlightOutOnDay(new Flight(startAreaAirpot, arrival,
+                            Integer.parseInt(flightLine[2]), Integer.parseInt(flightLine[3]), flight));
+                }
+            }
         }
 
         return new Graph(N, airpStart, areaStart, areas, airports, flights);
@@ -155,16 +171,6 @@ class Graph {
                             !visited.contains(flight.airportDestination.area)))
                 .collect(Collectors.toList());
     }
-
-//    public List<Flight> getPossibleFlightsFromAirportForRandomSearch(Airport airport, int day, HashSet<Area> visited) {
-//        return airport.flightsOut.values().stream()
-//                .filter(flight -> (flight.day == day || flight.day == 0) &&
-//                        // must be on right day (above) and in valid area (below)
-//                        (day == N ?
-//                            flight.airportDestination.area == areaStart :
-//                            !visited.contains(flight.airportDestination.area)))
-//                .collect(Collectors.toList());
-//    }
 }
 
 class Area{
@@ -225,12 +231,26 @@ class Flight{
     Airport airportDeparture, airportDestination;
     int day, cost;
 
+    boolean isShadow;
+    Flight shadow;
+
+    public Flight(Airport airportDeparture, Airport airportDestination, int day, int cost, Flight shadow) {
+        this.id = idCounter++;
+        this.airportDeparture = airportDeparture;
+        this.airportDestination = airportDestination;
+        this.day = day;
+        this.cost = cost;
+        this.shadow = shadow;
+        this.isShadow = true;
+    }
+
     public Flight(Airport departure, Airport destination, int day, int cost){
         this.id = idCounter++;
         this.airportDeparture = departure;
         this.airportDestination = destination;
         this.day = day;
         this.cost = cost;
+        this.isShadow = false;
     }
 }
 
@@ -277,7 +297,17 @@ class Solution{
         return true;
     }
 
+    public void unshadow() {
+        for (int i = 0; i < path.size(); i++) {
+            Flight flight = path.get(i);
+            if (flight.isShadow) {
+                path.set(i, flight.shadow);
+            }
+        }
+    }
+
     void printSolution(PrintStream destination){
+        this.unshadow();
         destination.println(cost);
         for(int i= 0; i < path.size(); i++){
             destination.println(path.get(i).airportDeparture.name+" "+path.get(i).airportDestination.name+" "+(i+1)+" "+path.get(i).cost);
