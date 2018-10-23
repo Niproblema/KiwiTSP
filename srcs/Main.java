@@ -14,27 +14,32 @@ public class Main{
     public static void main(String[] args) {
         graph = buildGraphFromInput();
 
-        Solution sol = bruteForceRandomSearch(50);
+        Solution sol = bruteForceRandomSearch(2000);
 
-        System.out.print("Done");
+        sol.printSolution(System.out);
     }
 
     static Solution bruteForceRandomSearch(int attempts) {
         int bestCost = Integer.MAX_VALUE;
         Solution best = new Solution(graph);
 
+        int valids = 0;
+
         for (int i = 0; i < attempts; i++) {
             Solution attempt = randomSearch(graph);
             if (attempt != null) {
-                System.out.println("Found valid solution, cost: " + attempt.cost);
+//                System.out.println("Found valid solution, cost: " + attempt.cost);
+                valids++;
                 if (attempt.cost < bestCost) {
                     bestCost = attempt.cost;
                     best = attempt;
                 }
             } else {
-                System.out.println("INVALID SOLUTION FOUND");
+//                System.out.println("INVALID SOLUTION FOUND");
             }
         }
+
+//        System.out.printf("Found %d/%d valid solutions", valids, attempts);
 
         return best;
     }
