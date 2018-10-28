@@ -22,7 +22,7 @@ public class Main {
         enableTimeoutTimer();
 
         //Algo
-        Algos.testFewExampleSolutions();  //Replace with algo
+        //Algos.testFewExampleSolutions();  //Replace with algo
         //
         Data.Time.tFinishTime = System.currentTimeMillis();
 
@@ -37,8 +37,7 @@ public class Main {
 
         static HashMap<String, Area> areas;
         static HashMap<String, Airport> airports;
-        static HashMap<Integer, Flight> flights;
-        static HashSet<Flight>[] flightsByDay;
+        static FlightmapByCityByDay inFlights, outFlights;
 
         static class Time {
             static long tStartTime = 0;
@@ -76,23 +75,6 @@ public class Main {
 
     static class Algos {
 
-        /**
-         * Few path examples for example test case 0.in TODO: remove later
-         */
-        static void testFewExampleSolutions() {
-            int[][] examplePaths = {
-                    {0, 3, 2},  //Correct 100
-                    {1, 4, 2},  //Correct 130
-                    {0, 4, 2},  //Incorrect
-                    {1, 3, 2},  //Incorrect
-                    {2, 3, 0},  //Incorrect
-                    {0, 5, 6}    //Incorrect
-            };
-
-            for (int i = 0; i < examplePaths.length; i++) {
-                pathEvaluator(examplePaths[i]);
-            }
-        }
     }
 
     /**
@@ -116,8 +98,7 @@ public class Main {
      * @return total cost of path or -1 if invalid.
      */
     static Flight[] fSolution = null;
-
-    static int pathEvaluator(int[] path) {
+    static int pathEvaluator(Flight[] path) {
         int cost = 0;
         if (path.length != Data.N) return -1; //Wrong size -> invalid
         if (fSolution == null) {
@@ -125,7 +106,7 @@ public class Main {
         }
         HashSet<Area> hsVisited = new HashSet<>();
         for (int i = 0; i < Data.N; i++) {
-            fSolution[i] = Data.flights.get(path[i]);
+            fSolution[i] = path[i];
         }
         if (fSolution[0].airportDeparture != Data.airpStart)
             return -1; //Start area != input start area -> invalid
@@ -159,13 +140,7 @@ public class Main {
             String start = temp[1];
 
             Data.areas = new HashMap<>(Data.N);
-            Data.airports = new HashMap<>();
-            Data.flights = new HashMap<>();
-            Data.flightsByDay = new HashSet[Data.N];
-
-            for (int i = 0; i < Data.N; i++) {
-                Data.flightsByDay[i] = new HashSet<>();
-            }
+            Data.airports = new HashMap<>(300);
 
 
             for (int i = 0; i < Data.N; i++) {
@@ -176,14 +151,18 @@ public class Main {
                 Data.airports.putAll(inArea.areaAirports);
             }
             Data.airpStart = Data.airports.get(start);
+            Data.outFlights = new FlightmapByCityByDay(Data.N, Airport.getAirportCount(), true);
+            Data.inFlights = new FlightmapByCityByDay(Data.N, Airport.getAirportCount(), false);
+
             String inLine;
             while ((inLine = inReader.readLine()) != null) {
                 String[] inFlightLine = inLine.split(" ");
                 if (inFlightLine.length < 4) break;
                 Flight inFlight = new Flight(inFlightLine[0], inFlightLine[1], Integer.parseInt(inFlightLine[2]), Integer.parseInt(inFlightLine[3]));
-                Data.flights.put(inFlight.id, inFlight);
+                Data.outFlights.addFlight(inFlight);
+                Data.inFlights.addFlight(inFlight);
             }
-        } catch (Exception ioe) {
+        } catch (IOException ioe) {
             System.out.println(ioe.toString());
         }
     }
@@ -206,14 +185,18 @@ class Area {
 
 class Airport {
     String name;
-    HashMap<Integer, Flight> flightsIn, flightsOut;
+    private static int idCounter = 0; //Unique id counter
+    int id;                           //Unique id
     Area arAreaLocation;
 
     public Airport(String name, Area area) {
+        this.id = idCounter++;
         this.name = name;
-        this.flightsIn = new HashMap<>();
-        this.flightsOut = new HashMap<>();
         this.arAreaLocation = area;
+    }
+
+    public static int getAirportCount() {
+        return idCounter;
     }
 }
 
@@ -229,16 +212,10 @@ class Flight {
         airportDestination = Main.Data.airports.get(destination);
         this.date = date;
         this.cost = cost;
-        airportDeparture.flightsOut.put(id, this);
-        airportDestination.flightsIn.put(id, this);
+    }
 
-        if (date == 0) {
-            for (int i = 0; i < Main.Data.N; i++) {
-                Main.Data.flightsByDay[i].add(this);
-            }
-        } else {
-            Main.Data.flightsByDay[date - 1].add(this);
-        }
+    public static int getAirportCount() {
+        return idCounter;
     }
 }
 
@@ -266,6 +243,34 @@ class Solution {
             if (i != fPath.length - 1) output += "\n";
         }
         return output;
+    }
+}
+
+class FlightmapByCityByDay {
+    private HashMap<Integer, Flight>[][] dcMap; // days / cities
+    private boolean isDepartureMap;
+    private int nDays, nCitites;
+
+    public FlightmapByCityByDay(int nDays, int nCities, boolean isDepartureMap) {
+        this.nDays = nDays;
+        this.nCitites = nCities;
+        this.isDepartureMap = isDepartureMap;
+        dcMap = new HashMap[nDays][nCities];
+        for (int day = 0; day < nDays; day++) {
+            for (int city = 0; city < nCities; city++) {
+                dcMap[day][city] = new HashMap<>();
+            }
+        }
+    }
+
+    public HashMap getFlights(int cityId, int day) {
+        return dcMap[day - 1][cityId];
+    }
+
+    public void addFlight(Flight flight) {
+        for (int day = Math.max(flight.date-1, 0); day < (flight.date == 0 ? Main.Data.N : flight.date); day++) {
+            dcMap[day][isDepartureMap ? flight.airportDeparture.id : flight.airportDestination.id].put(flight.id, flight);
+        }
     }
 }
 
