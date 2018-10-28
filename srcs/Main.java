@@ -1,18 +1,15 @@
+import java.io.BufferedReader;
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.Scanner;
+import java.util.StringTokenizer;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.logging.Logger;
-
-import sun.rmi.runtime.Log;
 
 public class Main {
 
@@ -100,6 +97,7 @@ public class Main {
      * @return total cost of path or -1 if invalid.
      */
     static Flight[] fSolution = null;
+
     static int pathEvaluator(Flight[] path) {
         int cost = 0;
         if (path.length != Data.N) return -1; //Wrong size -> invalid
@@ -133,42 +131,36 @@ public class Main {
      * Parses input into Main.Data
      */
     static void parseInput(String in) {
-        try {
-            InputReader inReader = null;
-            inReader = in != null ? new InputReader(in) : new InputReader();
+        InputReader inReader = in == null ? new InputReader() : new InputReader(in);
 
-            String[] temp = inReader.readLine().split(" ");
-            Data.N = Integer.parseInt(temp[0]);
-            String start = temp[1];
+        String[] temp = inReader.readLine().split(" ");
+        Data.N = Integer.parseInt(temp[0]);
+        String start = temp[1];
 
-            Data.areas = new HashMap<>(Data.N);
-            Data.airports = new HashMap<>(300);
+        Data.areas = new HashMap<>(Data.N);
+        Data.airports = new HashMap<>(300);
 
 
-            for (int i = 0; i < Data.N; i++) {
-                String name = inReader.readLine();
-                String[] airports = inReader.readLine().split(" ");
-                Area inArea = new Area(name, airports);
-                Data.areas.put(inArea.name, inArea);
-                Data.airports.putAll(inArea.areaAirports);
-            }
-            Data.airpStart = Data.airports.get(start);
-            Data.outFlights = new FlightmapByCityByDay(Data.N, Airport.getAirportCount(), true);
-            Data.inFlights = new FlightmapByCityByDay(Data.N, Airport.getAirportCount(), false);
+        for (int i = 0; i < Data.N; i++) {
+            String name = inReader.readLine();
+            String[] airports = inReader.readLine().split(" ");
+            Area inArea = new Area(name, airports);
+            Data.areas.put(inArea.name, inArea);
+            Data.airports.putAll(inArea.areaAirports);
+        }
+        Data.airpStart = Data.airports.get(start);
+        Data.outFlights = new FlightmapByCityByDay(Data.N, Airport.getAirportCount(), true);
+        Data.inFlights = new FlightmapByCityByDay(Data.N, Airport.getAirportCount(), false);
 
-            String inLine;
-            while ((inLine = inReader.readLine()) != null) {
-                String[] inFlightLine = inLine.split(" ");
-                if (inFlightLine.length < 4) break;
-                Flight inFlight = new Flight(inFlightLine[0], inFlightLine[1], Integer.parseInt(inFlightLine[2]), Integer.parseInt(inFlightLine[3]));
-                Data.outFlights.addFlight(inFlight);
-                Data.inFlights.addFlight(inFlight);
-            }
-        } catch (IOException ioe) {
-            System.out.println(ioe.toString());
+        String inLine;
+        while ((inLine = inReader.readLine()) != null) {
+            String[] inFlightLine = inLine.split(" ");
+            if (inFlightLine.length < 4) break;
+            Flight inFlight = new Flight(inFlightLine[0], inFlightLine[1], Integer.parseInt(inFlightLine[2]), Integer.parseInt(inFlightLine[3]));
+            Data.outFlights.addFlight(inFlight);
+            Data.inFlights.addFlight(inFlight);
         }
     }
-
 }
 
 
@@ -270,63 +262,45 @@ class FlightmapByCityByDay {
     }
 
     public void addFlight(Flight flight) {
-        for (int day = Math.max(flight.date-1, 0); day < (flight.date == 0 ? Main.Data.N : flight.date); day++) {
-            dcMap[day][isDepartureMap ? flight.airportDeparture.id : flight.airportDestination.id].add(flight);
+        int start = Math.max(flight.date - 1, 0);
+        int lim = flight.date == 0 ? Main.Data.N : flight.date;
+        if (isDepartureMap) {
+            for (int day = start; day < lim; day++) {
+                dcMap[day][flight.airportDeparture.id].add(flight);
+            }
+        } else {
+            for (int day = start; day < lim; day++) {
+                dcMap[day][flight.airportDestination.id].add(flight);
+            }
         }
+
     }
 }
 
 class InputReader {
-    final private int BUFFER_SIZE = 1 << 16;
-    private DataInputStream din;
-    private byte[] buffer;
-    private int bufferPointer, bytesRead;
+    BufferedReader br;
+    StringTokenizer st;
 
     public InputReader() {
-        din = new DataInputStream(System.in);
-        buffer = new byte[BUFFER_SIZE];
-        bufferPointer = bytesRead = 0;
+        br = new BufferedReader(new
+                InputStreamReader(System.in));
     }
 
-    public InputReader(String file_name) {
+    public InputReader(String name) {
         try {
-            din = new DataInputStream(new FileInputStream(file_name));
-        } catch (IOException ioE) {
-            System.out.println("No input file, using stdin instead");
-            din = new DataInputStream(System.in);
+            br = new BufferedReader(new InputStreamReader(new DataInputStream(new FileInputStream(name))));
+        } catch (Exception e) {
+            br = new BufferedReader(new InputStreamReader(System.in));
         }
-        buffer = new byte[BUFFER_SIZE];
-        bufferPointer = bytesRead = 0;
     }
 
-    private byte read() throws IOException {
-        if (bufferPointer == bytesRead)
-            fillBuffer();
-        return buffer[bufferPointer++];
-    }
-
-    private void fillBuffer() throws IOException {
-        bytesRead = din.read(buffer, bufferPointer = 0, BUFFER_SIZE);
-        if (bytesRead == -1)
-            buffer[0] = -1;
-    }
-
-    public void close() throws IOException {
-        if (din == null)
-            return;
-        din.close();
-    }
-
-    public String readLine() throws IOException {
-        byte[] buf = new byte[64];
-        int cnt = 0, c;
-        while ((c = read()) != -1) {
-            if (c == '\n')
-                break;
-            if (c != '\r') {
-                buf[cnt++] = (byte) c;
-            }
+    String readLine() {
+        String str = "";
+        try {
+            str = br.readLine();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        return new String(buf, 0, cnt);
+        return str;
     }
 }
