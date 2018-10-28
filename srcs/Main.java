@@ -3,8 +3,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Scanner;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -247,7 +249,7 @@ class Solution {
 }
 
 class FlightmapByCityByDay {
-    private HashMap<Integer, Flight>[][] dcMap; // days / cities
+    private ArrayList<Flight>[][] dcMap; // days / cities
     private boolean isDepartureMap;
     private int nDays, nCitites;
 
@@ -255,21 +257,21 @@ class FlightmapByCityByDay {
         this.nDays = nDays;
         this.nCitites = nCities;
         this.isDepartureMap = isDepartureMap;
-        dcMap = new HashMap[nDays][nCities];
+        dcMap = new ArrayList[nDays][nCities];
         for (int day = 0; day < nDays; day++) {
             for (int city = 0; city < nCities; city++) {
-                dcMap[day][city] = new HashMap<>();
+                dcMap[day][city] = new ArrayList<>();
             }
         }
     }
 
-    public HashMap getFlights(int cityId, int day) {
+    public ArrayList<Flight> getFlights(int cityId, int day) {
         return dcMap[day - 1][cityId];
     }
 
     public void addFlight(Flight flight) {
         for (int day = Math.max(flight.date-1, 0); day < (flight.date == 0 ? Main.Data.N : flight.date); day++) {
-            dcMap[day][isDepartureMap ? flight.airportDeparture.id : flight.airportDestination.id].put(flight.id, flight);
+            dcMap[day][isDepartureMap ? flight.airportDeparture.id : flight.airportDestination.id].add(flight);
         }
     }
 }
