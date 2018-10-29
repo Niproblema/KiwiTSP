@@ -16,10 +16,11 @@ public class Main {
 
     public static void main(String[] args) {
         Data.Time.tStartTime = System.currentTimeMillis();
-        //parseInput(null);
-        parseInput("tests/4.in");
+        Data.isDebugMode = false;       //DEBUG SWITCH
+        parseInput("tests/2.in");       //INPUT doesn't matter if debug is set to false
+
         Data.Time.tParseTime = System.currentTimeMillis();
-        enableTimeoutTimer(true);
+        enableTimeoutTimer();
 
         //Algo
         Algos.SickSearch.run();  //Replace with algo
@@ -28,6 +29,8 @@ public class Main {
 
     /* Data collection */
     static class Data {
+        static boolean isDebugMode = false;
+
         static int N;
         static Airport airpStart;
 
@@ -61,11 +64,11 @@ public class Main {
         /**
          * prints best solution
          */
-        private static synchronized void printBestAndFinish(boolean debug) {
+        private static synchronized void printBestAndFinish() {
             if (sBestSolution != null) {
                 sBestSolution.printSolution(System.out);
             }
-            if(debug) {
+            if (Data.isDebugMode) {
                 Data.Time.tFinishTime = System.currentTimeMillis();
                 System.out.println("\nParse: " + (Data.Time.tParseTime - Data.Time.tStartTime) + "\nOptimisation: " + (Data.Time.tOptimisation - Data.Time.tParseTime) + "\nAlgo: " + (Data.Time.tFinishTime - Data.Time.tOptimisation));
             }
@@ -94,8 +97,31 @@ public class Main {
                 aCity[0] = Data.airpStart;
                 bFixSol[0] = true;
 
-                //TODO: Optimizacije - rezanje nemogočih(npr nasledn dan letališče nima letov) + slabih flightov(isti dan isti flight, slabši cost). Lock in obveznih flightov/mest(določitev obveznih mest)
 
+                /////////Optimizacije/////////
+                //Optimizacije - rezanje nemogočih(npr nasledn dan letališče nima letov) + slabih flightov(isti dan isti flight, slabši cost). Lock in obveznih flightov/mest(določitev obveznih mest)
+                ArrayList<Flight>[][] fOutData = Data.outFlights.getMap();  // days / cities
+                ArrayList<Flight>[][] fInData = Data.inFlights.getMap();    // days / cities
+                int cutsInLastRound = -1;
+                while (cutsInLastRound != 0) {
+                    cutsInLastRound = 0;
+                    for (int day = 0; day < Data.N; day++) {
+                        for (int city = 0; city < Airport.getAirportCount(); city++) {
+                            if (day != 0 && fOutData[day][city].isEmpty()) {  //TODO: many other cases also...
+                                ArrayList<Flight> fInToCity = fInData[day - 1][city];
+                                cutsInLastRound+=fInToCity.size();
+                                for (Flight fToRemove : fInToCity) {
+                                    if (Data.isDebugMode) {
+                                        System.out.println("Removed flight:" + fToRemove.airportDeparture.name + " " + fToRemove.airportDestination.name + " " + fToRemove.date + " " + fToRemove.cost);
+                                    }
+                                    fOutData[day - 1][fToRemove.airportDeparture.id].remove(fToRemove);
+                                }
+                                fInToCity.clear();
+                            }
+                        }
+                    }
+                }
+                /////////////////////////////
 
                 Data.Time.tOptimisation = System.currentTimeMillis();
                 while (true) {  //Path search loop
@@ -126,8 +152,8 @@ public class Main {
                     }
                     int mFlightIndexPick = rng.nextInt(fRealPossibilities.size());   //TODO: better picking heuristics
                     fPath[day - 1] = fRealPossibilities.get(mFlightIndexPick);
-                    aCity[day] = fPath[day -1].airportDestination;
-                    visited.add(fPath[day -1].airportDestination.arAreaLocation.name);
+                    aCity[day] = fPath[day - 1].airportDestination;
+                    visited.add(fPath[day - 1].airportDestination.arAreaLocation.name);
                 }
             }
 
@@ -150,14 +176,14 @@ public class Main {
     /**
      * Prints best solution before time limit
      */
-    static void enableTimeoutTimer(final boolean debug) {
+    static void enableTimeoutTimer() {
         Timer t = new Timer();
         t.schedule(new TimerTask() {
             @Override
             public void run() {
-                Data.printBestAndFinish(debug);
+                Data.printBestAndFinish();
             }
-        }, Math.max(50, (Data.N <= 20 ? 2960 : (Data.N <= 100 ? 4960 : 14960)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
+        }, Math.max(50, (Data.N <= 20 ? 2900 : (Data.N <= 100 ? 4900 : 14900)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
     }
 
     /**
@@ -194,7 +220,7 @@ public class Main {
      * Parses input into Main.Data
      */
     static void parseInput(String in) {
-        InputReader inReader = in == null ? new InputReader() : new InputReader(in);
+        InputReader inReader = (in == null || !Data.isDebugMode) ? new InputReader() : new InputReader(in);
 
         String[] temp = inReader.readLine().split(" ");
         Data.N = Integer.parseInt(temp[0]);
@@ -337,6 +363,10 @@ class FlightmapByCityByDay {
             }
         }
 
+    }
+
+    public ArrayList<Flight>[][] getMap() {
+        return dcMap;
     }
 }
 
