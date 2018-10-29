@@ -7,6 +7,8 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Random;
 import java.util.StringTokenizer;
 import java.util.Timer;
@@ -17,7 +19,7 @@ public class Main {
     public static void main(String[] args) {
         Data.Time.tStartTime = System.currentTimeMillis();
         Data.isDebugMode = true;       //DEBUG SWITCH
-        parseInput("tests/4.in");       //INPUT doesn't matter if debug is set to false
+        parseInput("tests/2.in");       //INPUT doesn't matter if debug is set to false
 
         Data.Time.tParseTime = System.currentTimeMillis();
         enableTimeoutTimer();
@@ -30,7 +32,8 @@ public class Main {
     /* Data collection */
     static class Data {
         static boolean isDebugMode = false;
-        static class DebugStats{
+
+        static class DebugStats {
             static int mFlightCutsInEndpointCities = 0;
             static int mDuplicateFlightsCut = 0;
         }
@@ -40,7 +43,7 @@ public class Main {
 
         static HashMap<String, Area> areas;
         static HashMap<String, Airport> airports;
-        //static HashMap<String, Flight> flights;
+        static LinkedHashMap<String, Flight> flights;
 
         static FlightmapByCityByDay inFlights, outFlights;
 
@@ -77,7 +80,7 @@ public class Main {
             if (Data.isDebugMode) {
                 Data.Time.tFinishTime = System.currentTimeMillis();
                 System.out.println("\nTIME SHARES:\nParse: " + (Data.Time.tParseTime - Data.Time.tStartTime) + "\nOptimisation: " + (Data.Time.tOptimisation - Data.Time.tParseTime) + "\nAlgo: " + (Data.Time.tFinishTime - Data.Time.tOptimisation));
-                System.out.println("\nOPTIMISATION:\nEndpoint cities flights cuts: "+DebugStats.mFlightCutsInEndpointCities);
+                System.out.println("\nOPTIMISATION:\nEndpoint cities flights cuts: " + DebugStats.mFlightCutsInEndpointCities + "\nDuplicate flights with different costs: " + DebugStats.mDuplicateFlightsCut);
             }
             System.exit(0);
         }
@@ -190,7 +193,7 @@ public class Main {
             public void run() {
                 Data.printBestAndFinish();
             }
-        }, Math.max(50, (Data.N <= 20 ? 2900 : (Data.N <= 100 ? 4900 : 14900)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
+        }, Math.max(50, (Data.N <= 20 ? 2900 : (Data.N <= 100 ? 4900 : 14800)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
     }
 
     /**
@@ -235,6 +238,7 @@ public class Main {
 
         Data.areas = new HashMap<>(Data.N);
         Data.airports = new HashMap<>(300);
+        Data.flights = new LinkedHashMap<>(Airport.getAirportCount());
 
 
         for (int i = 0; i < Data.N; i++) {
@@ -253,9 +257,42 @@ public class Main {
             String[] inFlightLine = inLine.split(" ");
             if (inFlightLine.length < 4) break;
             Flight inFlight = new Flight(inFlightLine[0], inFlightLine[1], Integer.parseInt(inFlightLine[2]), Integer.parseInt(inFlightLine[3]));
-            Data.outFlights.addFlight(inFlight);
-            Data.inFlights.addFlight(inFlight);
+
+
+            String searchString = null;
+            if (inFlight.date == 0) {
+                for (int i = 1; i <= Data.N; i++) {
+                    searchString = inFlight.airportDeparture.name + inFlight.airportDestination.name + "@" + i;
+                    Flight existingBest = Data.flights.get(searchString);
+                    if (existingBest == null) {
+                        Data.flights.put(searchString, inFlight);
+                    } else {
+                        if (existingBest.cost > inFlight.cost) {
+                            Data.flights.replace(searchString, inFlight);
+                            Data.DebugStats.mDuplicateFlightsCut++;
+                        }
+                    }
+                }
+            } else {
+                searchString = inFlight.airportDeparture.name + inFlight.airportDestination.name + "@" + inFlight.date;
+                Flight existingBest = Data.flights.get(searchString);
+                if (existingBest == null) {
+                    Data.flights.put(searchString, inFlight);
+                } else {
+                    if (existingBest.cost > inFlight.cost) {
+                        Data.flights.replace(searchString, inFlight);
+                        Data.DebugStats.mDuplicateFlightsCut++;
+                    }
+                }
+            }
+
+
+            //Data.outFlights.addFlight(inFlight);
+            //Data.inFlights.addFlight(inFlight);
         }
+        FlightmapByCityByDay.populateINnOUTmap();
+//        Data.outFlights.addAllFlights();
+//        Data.inFlights.addAllFlights();
     }
 }
 
@@ -357,6 +394,7 @@ class FlightmapByCityByDay {
         return dcMap[day - 1][cityId];
     }
 
+    @Deprecated // doing it with AddAllFlights now
     public void addFlight(Flight flight) {
         int start = Math.max(flight.date - 1, 0);
         int lim = flight.date == 0 ? Main.Data.N : flight.date;
@@ -374,6 +412,28 @@ class FlightmapByCityByDay {
 
     public ArrayList<Flight>[][] getMap() {
         return dcMap;
+    }
+
+    @Deprecated
+    public void addAllFlights() {
+        for (Map.Entry<String, Flight> entry : Main.Data.flights.entrySet()) {
+            int date = Integer.parseInt(entry.getKey().split("@")[1]);
+            Flight flight = entry.getValue();
+            if (isDepartureMap) {
+                dcMap[date - 1][flight.airportDeparture.id].add(flight);
+            } else {
+                dcMap[date - 1][flight.airportDestination.id].add(flight);
+            }
+        }
+    }
+
+    public static void populateINnOUTmap() {
+        for (Map.Entry<String, Flight> entry : Main.Data.flights.entrySet()) {
+            int date = Integer.parseInt(entry.getKey().split("@")[1]);
+            Flight flight = entry.getValue();
+            Main.Data.outFlights.dcMap[date - 1][flight.airportDeparture.id].add(flight);
+            Main.Data.inFlights.dcMap[date - 1][flight.airportDestination.id].add(flight);
+        }
     }
 }
 
