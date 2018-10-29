@@ -7,8 +7,6 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Random;
 import java.util.StringTokenizer;
 import java.util.Timer;
@@ -19,8 +17,7 @@ public class Main {
     public static void main(String[] args) {
         Data.Time.tStartTime = System.currentTimeMillis();
         Data.isDebugMode = true;       //DEBUG SWITCH
-        parseInput("tests/2.in");       //INPUT doesn't matter if debug is set to false
-
+        parseInput("tests/4.in");       //INPUT doesn't matter if debug is set to false
         Data.Time.tParseTime = System.currentTimeMillis();
         enableTimeoutTimer();
 
@@ -43,9 +40,7 @@ public class Main {
 
         static HashMap<String, Area> areas;
         static HashMap<String, Airport> airports;
-        static LinkedHashMap<String, Flight> flights;
-
-        static FlightmapByCityByDay inFlights, outFlights;
+        static FlightmapByCityByDay flights;
 
         static class Time {
             static long tStartTime = 0;
@@ -110,27 +105,27 @@ public class Main {
 
                 /////////Optimizacije/////////
                 //Optimizacije - rezanje nemogočih(npr nasledn dan letališče nima letov) + slabih flightov(isti dan isti flight, slabši cost). Lock in obveznih flightov/mest(določitev obveznih mest)
-                ArrayList<Flight>[][] fOutData = Data.outFlights.getMap();  // days / cities
-                ArrayList<Flight>[][] fInData = Data.inFlights.getMap();    // days / cities
-                int cutsInLastRound = -1;
-                while (cutsInLastRound != 0) {
-                    cutsInLastRound = 0;
-                    for (int day = 0; day < Data.N; day++) {
-                        for (int city = 0; city < Airport.getAirportCount(); city++) {
-                            if (day != 0 && fOutData[day][city].isEmpty()) {  //TODO: many other cases also...
-                                ArrayList<Flight> fInToCity = fInData[day - 1][city];
-                                for (Flight fToRemove : fInToCity) {
-                                    if (fOutData[day - 1][fToRemove.airportDeparture.id].remove(fToRemove) && Data.isDebugMode) {
-                                        Data.DebugStats.mFlightCutsInEndpointCities++;
-                                        cutsInLastRound++;
-                                        //System.out.println("Removed flight:" + fToRemove.airportDeparture.name + " " + fToRemove.airportDestination.name + " " + fToRemove.date + " " + fToRemove.cost);
-                                    }
-                                }
-                                fInToCity.clear();
-                            }
-                        }
-                    }
-                }
+
+                //Remove flights that end in city that has no good flights the next day.
+//                int cutsInLastRound = -1;
+//                while (cutsInLastRound != 0) {
+//                    cutsInLastRound = 0;
+//                    for (int day = Data.N-1; day > 1; day--) {
+//                        for (int city = 0; city < Airport.getAirportCount(); city++) {
+//                            if (Algos.Utils.countNonNull(Data.flights.getFlightsByDepartureCityIDbyDay(day,city))==0) {  //TODO: many other cases also...
+//                                for(int cityWalk = 0; cityWalk<Airport.getAirportCount(); cityWalk++){
+//                                    if(Data.flights.getMap()[day-2][cityWalk][city]!= null){
+//                                        Data.DebugStats.mFlightCutsInEndpointCities++;
+//                                        cutsInLastRound++;
+//                                        Data.flights.getMap()[day-2][cityWalk][city]= null;
+//                                    }
+//                                }
+//                            }
+//                        }
+//                    }
+//                }
+                //
+
                 /////////////////////////////
 
                 Data.Time.tOptimisation = System.currentTimeMillis();
@@ -142,13 +137,10 @@ public class Main {
                         continue;
                     }
 
-                    ArrayList<Flight> fAllPossibleFlights = Data.outFlights.getFlights(aCity[day - 1].id, day);
-                    if (fAllPossibleFlights.isEmpty()) {  //No possible flights - return back a bit
-                        moveBack();
-                        continue;
-                    }
+                    Flight[] fAllPossibleFlights = Data.flights.getFlightsByDepartureCityIDbyDay(day, aCity[day - 1].id);
                     ArrayList<Flight> fRealPossibilities = new ArrayList<>();
                     for (Flight fPossibility : fAllPossibleFlights) {
+                        if(fPossibility==null)continue;
                         if ((!bFixSol[day] || (bFixSol[day] && fPossibility.airportDestination == aCity[day]))  //If next airport if predetermined -> filter flights
                                 && !visited.contains(fPossibility.airportDestination.arAreaLocation.name)       //Area can't have been visited before
                                 && (day == Data.N || (day != Data.N && fPossibility.airportDestination.arAreaLocation != Data.airpStart.arAreaLocation))) { //Dont pick airports in start area, if it's not final day
@@ -168,7 +160,7 @@ public class Main {
             }
 
             private static void moveBack() {        //Moveback hevristics to search for other solutions - todo:how much?
-                int moveBack = Math.min(day, (rng.nextInt(Math.max(0, day - 1)) + 2));
+                int moveBack = Math.min(day, (rng.nextInt(Math.max(1, day - 1)) + 2));
                 for (int i = 1; i < moveBack; i++) {
                     if (!bFixSol[day - i]) {
                         visited.remove(aCity[day - i].arAreaLocation.name);
@@ -176,6 +168,18 @@ public class Main {
                     }
                 }
                 day -= moveBack;
+            }
+
+        }
+
+        static class Utils{
+            public static int countNonNull(Object[] in){
+                int k = 0;
+                for(int i = 1; i<in.length; i++){
+                    if(in[i]!= null)
+                        k++;
+                }
+                return k;
             }
 
         }
@@ -193,7 +197,7 @@ public class Main {
             public void run() {
                 Data.printBestAndFinish();
             }
-        }, Math.max(50, (Data.N <= 20 ? 2900 : (Data.N <= 100 ? 4900 : 14800)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
+        }, Math.max(50, (Data.N <= 20 ? 2900 : (Data.N <= 100 ? 4900 : 14900)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
     }
 
     /**
@@ -238,8 +242,6 @@ public class Main {
 
         Data.areas = new HashMap<>(Data.N);
         Data.airports = new HashMap<>(300);
-        Data.flights = new LinkedHashMap<>(Airport.getAirportCount());
-
 
         for (int i = 0; i < Data.N; i++) {
             String name = inReader.readLine();
@@ -249,50 +251,15 @@ public class Main {
             Data.airports.putAll(inArea.areaAirports);
         }
         Data.airpStart = Data.airports.get(start);
-        Data.outFlights = new FlightmapByCityByDay(Data.N, Airport.getAirportCount(), true);
-        Data.inFlights = new FlightmapByCityByDay(Data.N, Airport.getAirportCount(), false);
+        Data.flights = new FlightmapByCityByDay(Data.N, Airport.getAirportCount());
 
         String inLine;
         while ((inLine = inReader.readLine()) != null) {
             String[] inFlightLine = inLine.split(" ");
             if (inFlightLine.length < 4) break;
             Flight inFlight = new Flight(inFlightLine[0], inFlightLine[1], Integer.parseInt(inFlightLine[2]), Integer.parseInt(inFlightLine[3]));
-
-
-            String searchString = null;
-            if (inFlight.date == 0) {
-                for (int i = 1; i <= Data.N; i++) {
-                    searchString = inFlight.airportDeparture.name + inFlight.airportDestination.name + "@" + i;
-                    Flight existingBest = Data.flights.get(searchString);
-                    if (existingBest == null) {
-                        Data.flights.put(searchString, inFlight);
-                    } else {
-                        if (existingBest.cost > inFlight.cost) {
-                            Data.flights.replace(searchString, inFlight);
-                            Data.DebugStats.mDuplicateFlightsCut++;
-                        }
-                    }
-                }
-            } else {
-                searchString = inFlight.airportDeparture.name + inFlight.airportDestination.name + "@" + inFlight.date;
-                Flight existingBest = Data.flights.get(searchString);
-                if (existingBest == null) {
-                    Data.flights.put(searchString, inFlight);
-                } else {
-                    if (existingBest.cost > inFlight.cost) {
-                        Data.flights.replace(searchString, inFlight);
-                        Data.DebugStats.mDuplicateFlightsCut++;
-                    }
-                }
-            }
-
-
-            //Data.outFlights.addFlight(inFlight);
-            //Data.inFlights.addFlight(inFlight);
+            Data.flights.addFlight(inFlight);
         }
-        FlightmapByCityByDay.populateINnOUTmap();
-//        Data.outFlights.addAllFlights();
-//        Data.inFlights.addAllFlights();
     }
 }
 
@@ -374,65 +341,52 @@ class Solution {
 }
 
 class FlightmapByCityByDay {
-    private ArrayList<Flight>[][] dcMap; // days / cities
-    private boolean isDepartureMap;
+    private Flight[][][] dcMap; // days / city Depart / city Destination
     private int nDays, nCitites;
 
-    public FlightmapByCityByDay(int nDays, int nCities, boolean isDepartureMap) {
+    public FlightmapByCityByDay(int nDays, int nCities) {
         this.nDays = nDays;
         this.nCitites = nCities;
-        this.isDepartureMap = isDepartureMap;
-        dcMap = new ArrayList[nDays][nCities];
-        for (int day = 0; day < nDays; day++) {
-            for (int city = 0; city < nCities; city++) {
-                dcMap[day][city] = new ArrayList<>();
-            }
-        }
+        dcMap = new Flight[nDays][nCities][nCities];
     }
 
-    public ArrayList<Flight> getFlights(int cityId, int day) {
+    public Flight[] getFlightsByDepartureCityIDbyDay(int day, int cityId) {
         return dcMap[day - 1][cityId];
     }
 
-    @Deprecated // doing it with AddAllFlights now
-    public void addFlight(Flight flight) {
-        int start = Math.max(flight.date - 1, 0);
-        int lim = flight.date == 0 ? Main.Data.N : flight.date;
-        if (isDepartureMap) {
-            for (int day = start; day < lim; day++) {
-                dcMap[day][flight.airportDeparture.id].add(flight);
-            }
-        } else {
-            for (int day = start; day < lim; day++) {
-                dcMap[day][flight.airportDestination.id].add(flight);
-            }
+    public Flight[] getFlightsByDestinationCityIDbyDay(int day, int cityId){
+        Flight[] fRtn = new Flight[Main.Data.N];
+        for(int i = 0; i < Main.Data.N; i++){
+            fRtn[i] = dcMap[day-1][i][cityId];
         }
-
+        return fRtn;
     }
 
-    public ArrayList<Flight>[][] getMap() {
+
+    public Flight[][][] getMap() {
         return dcMap;
     }
 
-    @Deprecated
-    public void addAllFlights() {
-        for (Map.Entry<String, Flight> entry : Main.Data.flights.entrySet()) {
-            int date = Integer.parseInt(entry.getKey().split("@")[1]);
-            Flight flight = entry.getValue();
-            if (isDepartureMap) {
-                dcMap[date - 1][flight.airportDeparture.id].add(flight);
-            } else {
-                dcMap[date - 1][flight.airportDestination.id].add(flight);
-            }
-        }
-    }
 
-    public static void populateINnOUTmap() {
-        for (Map.Entry<String, Flight> entry : Main.Data.flights.entrySet()) {
-            int date = Integer.parseInt(entry.getKey().split("@")[1]);
-            Flight flight = entry.getValue();
-            Main.Data.outFlights.dcMap[date - 1][flight.airportDeparture.id].add(flight);
-            Main.Data.inFlights.dcMap[date - 1][flight.airportDestination.id].add(flight);
+
+    public void addFlight(Flight inFlight) {
+        if(inFlight.date == 0){
+            for(int day = 0; day < Main.Data.N; day++){
+                if(dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] == null){
+                    dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = inFlight;
+                }else if(inFlight.cost < dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id].cost){
+                    dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = inFlight;
+                    Main.Data.DebugStats.mDuplicateFlightsCut++;
+                }
+            }
+        }else{
+            int day = inFlight.date-1;
+            if(dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] == null){
+                dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = inFlight;
+            }else if(inFlight.cost < dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id].cost){
+                dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = inFlight;
+                Main.Data.DebugStats.mDuplicateFlightsCut++;
+            }
         }
     }
 }
