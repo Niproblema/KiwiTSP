@@ -7,6 +7,7 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.StringTokenizer;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -15,18 +16,18 @@ public class Main {
 
     public static void main(String[] args) {
         Data.Time.tStartTime = System.currentTimeMillis();
-
+        //parseInput(null);
         parseInput("tests/4.in");
         Data.Time.tParseTime = System.currentTimeMillis();
         enableTimeoutTimer();
 
         //Algo
-        //Algos.testFewExampleSolutions();  //Replace with algo
+        Algos.SickSearch.run();  //Replace with algo
         //
         Data.Time.tFinishTime = System.currentTimeMillis();
 
-        System.out.println("\nParse: " + (Data.Time.tParseTime - Data.Time.tStartTime) + "\nAlgo: " + (Data.Time.tFinishTime - Data.Time.tParseTime));
-        Data.printBestAndFinish();
+        //System.out.println("\nParse: " + (Data.Time.tParseTime - Data.Time.tStartTime) + "\nAlgo: " + (Data.Time.tFinishTime - Data.Time.tParseTime));
+        //Data.printBestAndFinish();
     }
 
     /* Data collection */
@@ -73,6 +74,73 @@ public class Main {
     }
 
     static class Algos {
+        static class SickSearch {
+
+            private static Flight[] fPath = null;
+            private static Airport[] aCity = null;
+            private static HashSet<String> visited = null;
+            private static boolean bFixSol[] = null;
+            private static Random rng = null;
+            private static int day;
+
+            public static void run() {
+                fPath = new Flight[Data.N];         //Length N
+                aCity = new Airport[Data.N + 1];    //Length of N+1, 0th is start city
+                visited = new HashSet<>();
+                bFixSol = new boolean[Data.N + 1];
+                rng = new Random();
+                day = 0;
+                aCity[0] = Data.airpStart;
+                bFixSol[0] = true;
+
+
+                //TODO: Optimizacije - rezanje nemogočih(npr nasledn dan letališče nima letov) + slabih flightov(isti dan isti flight, slabši cost). Lock in obveznih flightov/mest(določitev obveznih mest)
+                while (true) {
+                    day++;
+                    if (day > Data.N) {   //Exit condition
+                        pathEvaluator(fPath); //TODO: do something with cost?
+                        moveBack();
+                        continue;
+                    }
+
+                    ArrayList<Flight> fAllPossibleFlights = Data.outFlights.getFlights(aCity[day - 1].id, day);
+                    if (fAllPossibleFlights.isEmpty()) {  //No possible flights - return back a bit
+                        moveBack();
+                        continue;
+                    }
+                    ArrayList<Flight> fRealPossibilities = new ArrayList<>();
+                    for (Flight fPossibility : fAllPossibleFlights) {
+                        if ((!bFixSol[day] || (bFixSol[day] && fPossibility.airportDestination == aCity[day]))  //If next airport if predetermined -> filter flights
+                                && !visited.contains(fPossibility.airportDestination.arAreaLocation.name)       //Area can't have been visited before
+                                && (day == Data.N || (day != Data.N && fPossibility.airportDestination.arAreaLocation != Data.airpStart.arAreaLocation))) { //Dont pick airports in start area, if it's not final day
+                            fRealPossibilities.add(fPossibility);
+                            //TODO: calculate odds
+                        }
+                    }
+                    if (fRealPossibilities.isEmpty()) {
+                        moveBack();
+                        continue;
+                    }
+                    int mFlightIndexPick = rng.nextInt(fRealPossibilities.size());   //TODO: better picking heuristics
+                    fPath[day - 1] = fRealPossibilities.get(mFlightIndexPick);
+                    aCity[day] = fPath[day -1].airportDestination;
+                    visited.add(fPath[day -1].airportDestination.arAreaLocation.name);
+                }
+            }
+
+            private static void moveBack() {        //Moveback hevristics to search for other solutions - todo:how much?
+                int moveBack = Math.min(day, (rng.nextInt(Math.max(0, day - 1)) + 2));
+                for (int i = 1; i < moveBack; i++) {
+                    if (!bFixSol[day - i]) {
+                        visited.remove(aCity[day - i].arAreaLocation.name);
+                        aCity[day - i] = null;
+                    }
+                }
+                day -= moveBack;
+            }
+
+        }
+
 
     }
 
@@ -86,28 +154,20 @@ public class Main {
             public void run() {
                 Data.printBestAndFinish();
             }
-        }, Math.max(50, (Data.N <= 20 ? 2950 : (Data.N <= 100 ? 4950 : 14950)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
+        }, Math.max(50, (Data.N <= 20 ? 2960 : (Data.N <= 100 ? 4960 : 14960)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
     }
 
     /**
      * Evaluates given path, submits best Solutions to data
      * All areas must be visited exactly once, finish area equals start area
      *
-     * @param path Array of flight ids.
+     * @param fSolution Array of flight ids.
      * @return total cost of path or -1 if invalid.
      */
-    static Flight[] fSolution = null;
-
-    static int pathEvaluator(Flight[] path) {
+    static int pathEvaluator(Flight[] fSolution) {
         int cost = 0;
-        if (path.length != Data.N) return -1; //Wrong size -> invalid
-        if (fSolution == null) {
-            fSolution = new Flight[Data.N];
-        }
+        if (fSolution.length != Data.N) return -1; //Wrong size -> invalid
         HashSet<Area> hsVisited = new HashSet<>();
-        for (int i = 0; i < Data.N; i++) {
-            fSolution[i] = path[i];
-        }
         if (fSolution[0].airportDeparture != Data.airpStart)
             return -1; //Start area != input start area -> invalid
         if (fSolution[0].airportDeparture.arAreaLocation != fSolution[Data.N - 1].airportDestination.arAreaLocation)
@@ -208,7 +268,7 @@ class Flight {
         this.cost = cost;
     }
 
-    public static int getAirportCount() {
+    public static int getFlightCount() {
         return idCounter;
     }
 }
