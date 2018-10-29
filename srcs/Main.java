@@ -16,8 +16,8 @@ public class Main {
 
     public static void main(String[] args) {
         Data.Time.tStartTime = System.currentTimeMillis();
-        Data.isDebugMode = false;       //DEBUG SWITCH
-        parseInput("tests/2.in");       //INPUT doesn't matter if debug is set to false
+        Data.isDebugMode = true;       //DEBUG SWITCH
+        parseInput("tests/4.in");       //INPUT doesn't matter if debug is set to false
 
         Data.Time.tParseTime = System.currentTimeMillis();
         enableTimeoutTimer();
@@ -30,12 +30,18 @@ public class Main {
     /* Data collection */
     static class Data {
         static boolean isDebugMode = false;
+        static class DebugStats{
+            static int mFlightCutsInEndpointCities = 0;
+            static int mDuplicateFlightsCut = 0;
+        }
 
         static int N;
         static Airport airpStart;
 
         static HashMap<String, Area> areas;
         static HashMap<String, Airport> airports;
+        //static HashMap<String, Flight> flights;
+
         static FlightmapByCityByDay inFlights, outFlights;
 
         static class Time {
@@ -70,7 +76,8 @@ public class Main {
             }
             if (Data.isDebugMode) {
                 Data.Time.tFinishTime = System.currentTimeMillis();
-                System.out.println("\nParse: " + (Data.Time.tParseTime - Data.Time.tStartTime) + "\nOptimisation: " + (Data.Time.tOptimisation - Data.Time.tParseTime) + "\nAlgo: " + (Data.Time.tFinishTime - Data.Time.tOptimisation));
+                System.out.println("\nTIME SHARES:\nParse: " + (Data.Time.tParseTime - Data.Time.tStartTime) + "\nOptimisation: " + (Data.Time.tOptimisation - Data.Time.tParseTime) + "\nAlgo: " + (Data.Time.tFinishTime - Data.Time.tOptimisation));
+                System.out.println("\nOPTIMISATION:\nEndpoint cities flights cuts: "+DebugStats.mFlightCutsInEndpointCities);
             }
             System.exit(0);
         }
@@ -109,12 +116,12 @@ public class Main {
                         for (int city = 0; city < Airport.getAirportCount(); city++) {
                             if (day != 0 && fOutData[day][city].isEmpty()) {  //TODO: many other cases also...
                                 ArrayList<Flight> fInToCity = fInData[day - 1][city];
-                                cutsInLastRound+=fInToCity.size();
                                 for (Flight fToRemove : fInToCity) {
-                                    if (Data.isDebugMode) {
-                                        System.out.println("Removed flight:" + fToRemove.airportDeparture.name + " " + fToRemove.airportDestination.name + " " + fToRemove.date + " " + fToRemove.cost);
+                                    if (fOutData[day - 1][fToRemove.airportDeparture.id].remove(fToRemove) && Data.isDebugMode) {
+                                        Data.DebugStats.mFlightCutsInEndpointCities++;
+                                        cutsInLastRound++;
+                                        //System.out.println("Removed flight:" + fToRemove.airportDeparture.name + " " + fToRemove.airportDestination.name + " " + fToRemove.date + " " + fToRemove.cost);
                                     }
-                                    fOutData[day - 1][fToRemove.airportDeparture.id].remove(fToRemove);
                                 }
                                 fInToCity.clear();
                             }
