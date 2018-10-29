@@ -7,6 +7,8 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Random;
 import java.util.StringTokenizer;
 import java.util.Timer;
@@ -33,6 +35,8 @@ public class Main {
         static class DebugStats {
             static int mFlightCutsInEndpointCities = 0;
             static int mDuplicateFlightsCut = 0;
+            static long maxMetScore = 0;
+            static long averageMetScore = 0;
         }
 
         static int N;
@@ -75,7 +79,7 @@ public class Main {
             if (Data.isDebugMode) {
                 Data.Time.tFinishTime = System.currentTimeMillis();
                 System.out.println("\nTIME SHARES:\nParse: " + (Data.Time.tParseTime - Data.Time.tStartTime) + "\nOptimisation: " + (Data.Time.tOptimisation - Data.Time.tParseTime) + "\nAlgo: " + (Data.Time.tFinishTime - Data.Time.tOptimisation));
-                System.out.println("\nOPTIMISATION:\nEndpoint cities flights cuts: " + DebugStats.mFlightCutsInEndpointCities + "\nDuplicate flights with different costs: " + DebugStats.mDuplicateFlightsCut);
+                System.out.println("\nOPTIMISATION:\nEndpoint cities flights cuts: " + DebugStats.mFlightCutsInEndpointCities + "\nDuplicate flights with different costs: " + DebugStats.mDuplicateFlightsCut + "\nMax met scoore: " + DebugStats.maxMetScore);
             }
             System.exit(0);
         }
@@ -91,6 +95,9 @@ public class Main {
             private static boolean bFixSol[] = null;
             private static Random rng = null;
             private static int day;
+            private static LinkedHashSet<Metadata> mets;
+            private static int bestCost = Integer.MAX_VALUE;
+            private static int pathsFound = 0;
 
             public static void run() {
                 fPath = new Flight[Data.N];         //Length N
@@ -101,29 +108,30 @@ public class Main {
                 day = 0;
                 aCity[0] = Data.airpStart;
                 bFixSol[0] = true;
+                mets = new LinkedHashSet<>();
 
 
                 /////////Optimizacije/////////
                 //Optimizacije - rezanje nemogočih(npr nasledn dan letališče nima letov) + slabih flightov(isti dan isti flight, slabši cost). Lock in obveznih flightov/mest(določitev obveznih mest)
 
                 //Remove flights that end in city that has no good flights the next day.
-//                int cutsInLastRound = -1;
-//                while (cutsInLastRound != 0) {
-//                    cutsInLastRound = 0;
-//                    for (int day = Data.N-1; day > 1; day--) {
-//                        for (int city = 0; city < Airport.getAirportCount(); city++) {
-//                            if (Algos.Utils.countNonNull(Data.flights.getFlightsByDepartureCityIDbyDay(day,city))==0) {  //TODO: many other cases also...
-//                                for(int cityWalk = 0; cityWalk<Airport.getAirportCount(); cityWalk++){
-//                                    if(Data.flights.getMap()[day-2][cityWalk][city]!= null){
-//                                        Data.DebugStats.mFlightCutsInEndpointCities++;
-//                                        cutsInLastRound++;
-//                                        Data.flights.getMap()[day-2][cityWalk][city]= null;
-//                                    }
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
+                int cutsInLastRound = -1;
+                while (cutsInLastRound != 0) {
+                    cutsInLastRound = 0;
+                    for (int day = Data.N-1; day > 1; day--) {
+                        for (int city = 0; city < Airport.getAirportCount(); city++) {
+                            if (Algos.Utils.countNonNull(Data.flights.getFlightsByDepartureCityIDbyDay(day,city))==0) {  //TODO: many other cases also...
+                                for(int cityWalk = 0; cityWalk<Airport.getAirportCount(); cityWalk++){
+                                    if(Data.flights.getMap()[day-2][cityWalk][city]!= null){
+                                        Data.DebugStats.mFlightCutsInEndpointCities++;
+                                        cutsInLastRound++;
+                                        Data.flights.getMap()[day-2][cityWalk][city]= null;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 //
 
                 /////////////////////////////
@@ -132,30 +140,62 @@ public class Main {
                 while (true) {  //Path search loop
                     day++;
                     if (day > Data.N) {   //Exit condition
-                        pathEvaluator(fPath); //TODO: do something with cost?
-                        moveBack();
+                        int cost = pathEvaluator(fPath);
+                        if (cost != -1) {
+                            pathsFound++;
+                            if (pathsFound != 1) {
+                                cooldownMets();
+                                int score = Math.round((((float) bestCost) / ((float) cost)) * 1000);
+                                if (Data.isDebugMode) {
+                                    System.out.println(score);
+                                }
+                                for (int i = 0; i < Data.N; i++) {
+                                    Metadata m = Data.flights.mMap[i][fPath[i].airportDeparture.id][fPath[i].airportDestination.id];
+                                    m.chance += score;
+                                    if (m.chance > Data.DebugStats.maxMetScore) {
+                                        Data.DebugStats.maxMetScore = m.chance;
+                                    }
+                                    mets.add(m);
+                                }
+
+                            }
+                            if (cost < bestCost) {
+                                bestCost = cost;
+                            }
+                        }
+                        moveToStart();
                         continue;
                     }
 
                     Flight[] fAllPossibleFlights = Data.flights.getFlightsByDepartureCityIDbyDay(day, aCity[day - 1].id);
                     ArrayList<Flight> fRealPossibilities = new ArrayList<>();
+                    long sumOdds = 0;
                     for (Flight fPossibility : fAllPossibleFlights) {
-                        if(fPossibility==null)continue;
+                        if (fPossibility == null) continue;
                         if ((!bFixSol[day] || (bFixSol[day] && fPossibility.airportDestination == aCity[day]))  //If next airport if predetermined -> filter flights
                                 && !visited.contains(fPossibility.airportDestination.arAreaLocation.name)       //Area can't have been visited before
                                 && (day == Data.N || (day != Data.N && fPossibility.airportDestination.arAreaLocation != Data.airpStart.arAreaLocation))) { //Dont pick airports in start area, if it's not final day
                             fRealPossibilities.add(fPossibility);
-                            //TODO: calculate odds
+                            sumOdds += Data.flights.mMap[day - 1][fPossibility.airportDeparture.id][fPossibility.airportDestination.id].chance;
                         }
                     }
                     if (fRealPossibilities.isEmpty()) {
                         moveBack();
                         continue;
                     }
-                    int mFlightIndexPick = rng.nextInt(fRealPossibilities.size());   //TODO: better picking heuristics
-                    fPath[day - 1] = fRealPossibilities.get(mFlightIndexPick);
-                    aCity[day] = fPath[day - 1].airportDestination;
-                    visited.add(fPath[day - 1].airportDestination.arAreaLocation.name);
+                    int scorePick = rng.nextInt((int) sumOdds) + 1;
+                    int score = 0;
+                    Flight pick = fRealPossibilities.get(fRealPossibilities.size() - 1);
+                    for (Flight f : fRealPossibilities) {
+                        score += Data.flights.mMap[day - 1][f.airportDeparture.id][f.airportDestination.id].chance;
+                        if (score >= scorePick) {
+                            pick = f;
+                            break;
+                        }
+                    }
+                    fPath[day - 1] = pick;
+                    aCity[day] = pick.airportDestination;
+                    visited.add(pick.airportDestination.arAreaLocation.name);
                 }
             }
 
@@ -170,13 +210,35 @@ public class Main {
                 day -= moveBack;
             }
 
+            private static void moveToStart() {
+                for (int i = Data.N; i > 0; i--) {
+                    if (!bFixSol[i] && aCity[i] !=null) {
+                        visited.remove(aCity[i].arAreaLocation.name);
+                        aCity[i] = null;
+                    }
+                }
+                day = 0;
+            }
+
+            private static void cooldownMets() {
+                Iterator<Metadata> metIte = mets.iterator();
+                while (metIte.hasNext()) {
+                    Metadata m = metIte.next();
+                    m.chance = 600+Math.round(((float) m.chance) * 0.4f);
+/*                    if (m.chance <= 1000) {
+                        m.chance = 1000;
+                        metIte.remove();
+                    }*/
+                }
+            }
+
         }
 
-        static class Utils{
-            public static int countNonNull(Object[] in){
+        static class Utils {
+            public static int countNonNull(Object[] in) {
                 int k = 0;
-                for(int i = 1; i<in.length; i++){
-                    if(in[i]!= null)
+                for (int i = 1; i < in.length; i++) {
+                    if (in[i] != null)
                         k++;
                 }
                 return k;
@@ -197,7 +259,7 @@ public class Main {
             public void run() {
                 Data.printBestAndFinish();
             }
-        }, Math.max(50, (Data.N <= 20 ? 2900 : (Data.N <= 100 ? 4900 : 14900)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
+        }, Math.max(50, (Data.N <= 20 ? 2900 : (Data.N <= 100 ? 4900 : 14500)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
     }
 
     /**
@@ -226,6 +288,7 @@ public class Main {
             hsVisited.add(airCurrLoc.arAreaLocation);
             cost += fSolution[i].cost;
         }
+
         Data.submitSolution(new Solution(fSolution, cost));
         return cost;
     }
@@ -342,22 +405,25 @@ class Solution {
 
 class FlightmapByCityByDay {
     private Flight[][][] dcMap; // days / city Depart / city Destination
+    public Metadata[][][] mMap;
+
     private int nDays, nCitites;
 
     public FlightmapByCityByDay(int nDays, int nCities) {
         this.nDays = nDays;
         this.nCitites = nCities;
         dcMap = new Flight[nDays][nCities][nCities];
+        mMap = new Metadata[nDays][nCities][nCities];
     }
 
     public Flight[] getFlightsByDepartureCityIDbyDay(int day, int cityId) {
         return dcMap[day - 1][cityId];
     }
 
-    public Flight[] getFlightsByDestinationCityIDbyDay(int day, int cityId){
+    public Flight[] getFlightsByDestinationCityIDbyDay(int day, int cityId) {
         Flight[] fRtn = new Flight[Main.Data.N];
-        for(int i = 0; i < Main.Data.N; i++){
-            fRtn[i] = dcMap[day-1][i][cityId];
+        for (int i = 0; i < Main.Data.N; i++) {
+            fRtn[i] = dcMap[day - 1][i][cityId];
         }
         return fRtn;
     }
@@ -368,27 +434,32 @@ class FlightmapByCityByDay {
     }
 
 
-
     public void addFlight(Flight inFlight) {
-        if(inFlight.date == 0){
-            for(int day = 0; day < Main.Data.N; day++){
-                if(dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] == null){
+        if (inFlight.date == 0) {
+            for (int day = 0; day < Main.Data.N; day++) {
+                if (dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] == null) {
                     dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = inFlight;
-                }else if(inFlight.cost < dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id].cost){
+                    mMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = new Metadata();
+                } else if (inFlight.cost < dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id].cost) {
                     dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = inFlight;
                     Main.Data.DebugStats.mDuplicateFlightsCut++;
                 }
             }
-        }else{
-            int day = inFlight.date-1;
-            if(dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] == null){
+        } else {
+            int day = inFlight.date - 1;
+            if (dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] == null) {
                 dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = inFlight;
-            }else if(inFlight.cost < dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id].cost){
+                mMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = new Metadata();
+            } else if (inFlight.cost < dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id].cost) {
                 dcMap[day][inFlight.airportDeparture.id][inFlight.airportDestination.id] = inFlight;
                 Main.Data.DebugStats.mDuplicateFlightsCut++;
             }
         }
     }
+}
+
+class Metadata {
+    long chance = 1000;
 }
 
 class InputReader {
