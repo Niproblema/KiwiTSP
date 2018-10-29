@@ -19,15 +19,11 @@ public class Main {
         //parseInput(null);
         parseInput("tests/4.in");
         Data.Time.tParseTime = System.currentTimeMillis();
-        enableTimeoutTimer();
+        enableTimeoutTimer(true);
 
         //Algo
         Algos.SickSearch.run();  //Replace with algo
         //
-        Data.Time.tFinishTime = System.currentTimeMillis();
-
-        //System.out.println("\nParse: " + (Data.Time.tParseTime - Data.Time.tStartTime) + "\nAlgo: " + (Data.Time.tFinishTime - Data.Time.tParseTime));
-        //Data.printBestAndFinish();
     }
 
     /* Data collection */
@@ -42,6 +38,7 @@ public class Main {
         static class Time {
             static long tStartTime = 0;
             static long tParseTime = 0;
+            static long tOptimisation = 0;
             static long tFinishTime = 0;
         }
 
@@ -64,9 +61,13 @@ public class Main {
         /**
          * prints best solution
          */
-        private static synchronized void printBestAndFinish() {
+        private static synchronized void printBestAndFinish(boolean debug) {
             if (sBestSolution != null) {
                 sBestSolution.printSolution(System.out);
+            }
+            if(debug) {
+                Data.Time.tFinishTime = System.currentTimeMillis();
+                System.out.println("\nParse: " + (Data.Time.tParseTime - Data.Time.tStartTime) + "\nOptimisation: " + (Data.Time.tOptimisation - Data.Time.tParseTime) + "\nAlgo: " + (Data.Time.tFinishTime - Data.Time.tOptimisation));
             }
             System.exit(0);
         }
@@ -93,9 +94,11 @@ public class Main {
                 aCity[0] = Data.airpStart;
                 bFixSol[0] = true;
 
-
                 //TODO: Optimizacije - rezanje nemogočih(npr nasledn dan letališče nima letov) + slabih flightov(isti dan isti flight, slabši cost). Lock in obveznih flightov/mest(določitev obveznih mest)
-                while (true) {
+
+
+                Data.Time.tOptimisation = System.currentTimeMillis();
+                while (true) {  //Path search loop
                     day++;
                     if (day > Data.N) {   //Exit condition
                         pathEvaluator(fPath); //TODO: do something with cost?
@@ -147,12 +150,12 @@ public class Main {
     /**
      * Prints best solution before time limit
      */
-    static void enableTimeoutTimer() {
+    static void enableTimeoutTimer(final boolean debug) {
         Timer t = new Timer();
         t.schedule(new TimerTask() {
             @Override
             public void run() {
-                Data.printBestAndFinish();
+                Data.printBestAndFinish(debug);
             }
         }, Math.max(50, (Data.N <= 20 ? 2960 : (Data.N <= 100 ? 4960 : 14960)) - (System.currentTimeMillis() - Data.Time.tStartTime)));
     }
